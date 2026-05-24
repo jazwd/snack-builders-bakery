@@ -1,0 +1,24 @@
+{
+    "name": "snack-builder-bakery-api",
+    "version": "1.0.0",
+    "description": "High-performance API for Snack Builders Bakery",
+    "main": "index.js",
+    "scripts": {
+        "dev": "tsx watch index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "dependencies": {
+        "@fastify/websocket": "^8.3.1",
+        "fastify": "^4.28.1"
+    },
+    "devDependencies": {
+        "@types/node": "^25.9.1",
+        "tsx": "^4.20.6",
+        "typescript": "^6.0.3"
+    }
+}
