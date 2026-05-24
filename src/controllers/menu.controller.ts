@@ -31,7 +31,7 @@ export async function createMenuItem(
     });
   }
 
-  const item = scheduler.createMenuItem({
+  const item = await scheduler.createMenuItem({
     name: body.name,
     category: body.category,
     price: body.price,
@@ -61,7 +61,7 @@ export async function updateMenuItem(
   }
 
   try {
-    const updated = scheduler.updateMenuItem(params.id, body);
+    const updated = await scheduler.updateMenuItem(params.id, body);
     return reply.send(updated);
   } catch (error) {
     return reply.code(404).send({ error: (error as Error).message });
@@ -74,7 +74,7 @@ export async function deleteMenuItem(
 ): Promise<FastifyReply> {
   const params = request.params as { id: string };
   try {
-    scheduler.removeMenuItem(params.id);
+    await scheduler.removeMenuItem(params.id);
     return reply.code(204).send();
   } catch (error) {
     return reply.code(404).send({ error: (error as Error).message });

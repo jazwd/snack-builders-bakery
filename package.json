@@ -14,7 +14,9 @@
     "type": "commonjs",
     "dependencies": {
         "@fastify/websocket": "^8.3.1",
-        "fastify": "^4.28.1"
+        "dotenv": "^16.4.5",
+        "fastify": "^4.28.1",
+        "mongodb": "^6.18.0"
     },
     "devDependencies": {
         "@types/node": "^25.9.1",

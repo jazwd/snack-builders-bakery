@@ -1,6 +1,12 @@
-export async function getHealth(): Promise<Record<string, string>> {
+import { pingMongo } from '../services/mongo.service';
+
+export async function getHealth(): Promise<Record<string, string | boolean>> {
+  const mongoConnected = await pingMongo();
+
   return {
-    status: 'ok',
+    status: mongoConnected ? 'ok' : 'degraded',
     service: 'snack-builder-bakery-api',
+    mongodb: mongoConnected ? 'connected' : 'disconnected',
+    ready: mongoConnected,
   };
 }

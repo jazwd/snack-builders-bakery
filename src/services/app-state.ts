@@ -6,7 +6,9 @@ import {
   CreditCardPaymentProcessor,
   PaymentService,
 } from './payment.service';
-import { KitchenScheduler } from './kitchen-scheduler.service';
+import { KitchenScheduler } from './kitchenScheduler.service';
+import { getDb } from './mongo.service';
+import { MongoBakeryRepository } from './mongo-bakery.repository';
 
 export const orderSubscribers = new Map<string, Set<SocketLike>>();
 
@@ -15,24 +17,36 @@ const paymentService = new PaymentService([
   new CreditCardPaymentProcessor(),
 ]);
 
-export const scheduler = new KitchenScheduler(
-  new SystemClock(),
-  paymentService,
-  (order) => {
-    const subscribers = orderSubscribers.get(order.id);
-    if (!subscribers || subscribers.size === 0) {
-      return;
-    }
+export let scheduler: KitchenScheduler;
 
-    const payload = JSON.stringify({
-      type: 'order_status_changed',
-      data: serializeOrder(order),
-    });
+function broadcastOrderChanged(
+  order: Parameters<typeof serializeOrder>[0]
+): void {
+  const subscribers = orderSubscribers.get(order.id);
+  if (!subscribers || subscribers.size === 0) {
+    return;
+  }
 
-    for (const socket of subscribers) {
-      if (socket.readyState === 1) {
-        socket.send(payload);
-      }
+  const payload = JSON.stringify({
+    type: 'order_status_changed',
+    data: serializeOrder(order),
+  });
+
+  for (const socket of subscribers) {
+    if (socket.readyState === 1) {
+      socket.send(payload);
     }
   }
-);
+}
+
+export async function initializeAppState(): Promise<void> {
+  const db = await getDb();
+  const repository = new MongoBakeryRepository(db);
+  scheduler = new KitchenScheduler(
+    new SystemClock(),
+    paymentService,
+    broadcastOrderChanged,
+    repository
+  );
+  await scheduler.initialize();
+}
