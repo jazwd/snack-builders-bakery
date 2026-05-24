@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import Fastify from 'fastify';
 import websocketPlugin from '@fastify/websocket';
 
@@ -11,28 +13,36 @@ import {
 import { getKitchenStatus } from './src/controllers/kitchen.controller';
 import { createOrder, getOrderById } from './src/controllers/orders.controller';
 import { subscribeOrderStatus } from './src/controllers/order-ws.controller';
+import { initializeAppState } from './src/services/app-state';
+import { getEnvConfig } from './src/services/config.service';
 
 const app = Fastify({ logger: true });
+const API_PREFIX = '/api';
 
 void app.register(websocketPlugin);
 
-app.get('/health', getHealth);
+app.get(`${API_PREFIX}/health`, getHealth);
 
-app.get('/menu', getMenu);
-app.post('/menu', createMenuItem);
-app.put('/menu/:id', updateMenuItem);
-app.delete('/menu/:id', deleteMenuItem);
+app.get(`${API_PREFIX}/menu`, getMenu);
+app.post(`${API_PREFIX}/menu`, createMenuItem);
+app.put(`${API_PREFIX}/menu/:id`, updateMenuItem);
+app.delete(`${API_PREFIX}/menu/:id`, deleteMenuItem);
 
-app.post('/orders', createOrder);
-app.get('/orders/:orderId', getOrderById);
+app.post(`${API_PREFIX}/orders`, createOrder);
+app.get(`${API_PREFIX}/orders/:orderId`, getOrderById);
 
-app.get('/kitchen/status', getKitchenStatus);
+app.get(`${API_PREFIX}/kitchen/status`, getKitchenStatus);
 
-app.get('/ws/orders/:orderId', { websocket: true }, subscribeOrderStatus);
+app.get(
+  `${API_PREFIX}/ws/orders/:orderId`,
+  { websocket: true },
+  subscribeOrderStatus
+);
 
 async function startServer(): Promise<void> {
-  const port = Number(process.env.PORT ?? '3000');
-  await app.listen({ port, host: '0.0.0.0' });
+  const env = getEnvConfig();
+  await initializeAppState();
+  await app.listen({ port: env.port, host: '0.0.0.0' });
 }
 
 void startServer().catch((error) => {

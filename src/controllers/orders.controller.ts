@@ -41,7 +41,7 @@ export async function createOrder(
       total_price: round2(order.totalPrice),
       estimated_ready_time: new Date(order.estimatedReadyAt).toISOString(),
       status: order.status,
-      websocket_tracking_url: `/ws/orders/${order.id}`,
+      websocket_tracking_url: `/api/ws/orders/${order.id}`,
     });
   } catch (error) {
     return reply.code(400).send({ error: (error as Error).message });

@@ -10,6 +10,7 @@ import {
 import type { Clock } from '../utils/clock';
 import { Mutex } from '../utils/mutex';
 import { PaymentService } from './payment.service';
+import type { PersistenceGateway } from './persistence.types';
 
 class TaskPriorityQueue {
   private heap: Task[] = [];
@@ -33,6 +34,10 @@ class TaskPriorityQueue {
     }
 
     return top;
+  }
+
+  clear(): void {
+    this.heap = [];
   }
 
   snapshotSorted(): Task[] {
@@ -113,6 +118,7 @@ export class KitchenScheduler {
     private readonly clock: Clock,
     private readonly paymentService: PaymentService,
     private readonly onOrderChanged: (order: Order) => void,
+    private readonly persistence?: PersistenceGateway,
     ovenCount = 2,
     slotsPerOven = 3
   ) {
@@ -123,8 +129,51 @@ export class KitchenScheduler {
       id: ovenIndex + 1,
       slots: Array.from({ length: slotsPerOven }, () => ({ taskId: null })),
     }));
+  }
 
-    this.seedMenu();
+  async initialize(): Promise<void> {
+    if (!this.persistence) {
+      this.seedMenu();
+      return;
+    }
+
+    await this.persistence.ensureSchemas();
+    const snapshot = await this.persistence.loadSnapshot();
+
+    this.menu.clear();
+    this.orders.clear();
+    this.tasks.clear();
+    this.queue.clear();
+
+    for (const item of snapshot.menuItems) {
+      this.menu.set(item.id, item);
+    }
+
+    for (const order of snapshot.orders) {
+      this.orders.set(order.id, order);
+      this.ticketCounter = Math.max(this.ticketCounter, order.ticketNumber + 1);
+    }
+
+    for (const task of snapshot.tasks) {
+      this.tasks.set(task.id, task);
+      this.sequenceCounter = Math.max(this.sequenceCounter, task.sequence + 1);
+      if (task.status === 'queued') {
+        this.queue.enqueue(task);
+      }
+    }
+
+    if (this.menu.size === 0) {
+      this.seedMenu();
+      for (const item of this.menu.values()) {
+        await this.persistence.saveMenuItem(item);
+      }
+    }
+
+    this.rebuildOvenAssignments();
+    this.recalculateEstimatesAndStatuses();
+    this.dispatchAvailableSlots();
+    this.recalculateEstimatesAndStatuses();
+    await this.persistState();
   }
 
   private seedMenu(): void {
@@ -161,11 +210,11 @@ export class KitchenScheduler {
     return [...this.menu.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  createMenuItem(input: {
+  async createMenuItem(input: {
     name: string;
     category: Category;
     price: number;
-  }): MenuItem {
+  }): Promise<MenuItem> {
     const now = this.clock.now();
     const menuItem: MenuItem = {
       id: this.createId('menu'),
@@ -177,10 +226,11 @@ export class KitchenScheduler {
       updatedAt: now,
     };
     this.menu.set(menuItem.id, menuItem);
+    await this.persistence?.saveMenuItem(menuItem);
     return menuItem;
   }
 
-  updateMenuItem(
+  async updateMenuItem(
     id: string,
     input: Partial<{
       name: string;
@@ -188,7 +238,7 @@ export class KitchenScheduler {
       price: number;
       active: boolean;
     }>
-  ): MenuItem {
+  ): Promise<MenuItem> {
     const existing = this.menu.get(id);
     if (!existing) {
       throw new Error('Menu item not found');
@@ -201,14 +251,16 @@ export class KitchenScheduler {
     };
 
     this.menu.set(id, updated);
+    await this.persistence?.saveMenuItem(updated);
     return updated;
   }
 
-  removeMenuItem(id: string): void {
+  async removeMenuItem(id: string): Promise<void> {
     if (!this.menu.has(id)) {
       throw new Error('Menu item not found');
     }
     this.menu.delete(id);
+    await this.persistence?.deleteMenuItem(id);
   }
 
   async placeOrder(input: PlaceOrderInput): Promise<Order> {
@@ -289,6 +341,13 @@ export class KitchenScheduler {
       this.recalculateEstimatesAndStatuses();
       this.dispatchAvailableSlots();
       this.recalculateEstimatesAndStatuses();
+      await this.persistence?.saveOrderWithTasks(
+        order,
+        taskIds
+          .map((id) => this.tasks.get(id))
+          .filter((task): task is Task => Boolean(task))
+      );
+      await this.persistState();
       return this.mustGetOrder(order.id);
     });
   }
@@ -403,6 +462,7 @@ export class KitchenScheduler {
       this.recalculateEstimatesAndStatuses();
       this.dispatchAvailableSlots();
       this.recalculateEstimatesAndStatuses();
+      await this.persistState();
     });
   }
 
@@ -458,9 +518,16 @@ export class KitchenScheduler {
     }
 
     for (const order of this.orders.values()) {
-      const orderTasks = order.taskIds
+      const orderTaskIds = Array.isArray(order.taskIds) ? order.taskIds : [];
+      const orderTasks = orderTaskIds
         .map((taskId) => this.tasks.get(taskId))
         .filter((task): task is Task => Boolean(task));
+
+      if (orderTasks.length === 0) {
+        order.updatedAt = now;
+        this.onOrderChanged(order);
+        continue;
+      }
 
       const allDone = orderTasks.every((task) => task.status === 'done');
       const anyBaking = orderTasks.some((task) => task.status === 'baking');
@@ -518,5 +585,57 @@ export class KitchenScheduler {
     return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now()
       .toString(36)
       .slice(-4)}`;
+  }
+
+  private rebuildOvenAssignments(): void {
+    for (const oven of this.ovens) {
+      for (const slot of oven.slots) {
+        slot.taskId = null;
+      }
+    }
+
+    for (const timeout of this.taskTimers.values()) {
+      this.clock.clearTimeout(timeout);
+    }
+    this.taskTimers.clear();
+
+    const now = this.clock.now();
+
+    for (const task of this.tasks.values()) {
+      if (
+        task.status !== 'baking' ||
+        typeof task.ovenId !== 'number' ||
+        typeof task.slotIndex !== 'number'
+      ) {
+        continue;
+      }
+
+      const oven = this.ovens.find((candidate) => candidate.id === task.ovenId);
+      if (!oven) {
+        continue;
+      }
+      if (task.slotIndex < 0 || task.slotIndex >= oven.slots.length) {
+        continue;
+      }
+
+      oven.slots[task.slotIndex].taskId = task.id;
+
+      const remainingMs = Math.max((task.expectedDoneAt ?? now) - now, 0);
+      const timeout = this.clock.setTimeout(() => {
+        void this.finishTask(task.id);
+      }, remainingMs);
+      this.taskTimers.set(task.id, timeout);
+    }
+  }
+
+  private async persistState(): Promise<void> {
+    if (!this.persistence) {
+      return;
+    }
+
+    await Promise.all([
+      this.persistence.saveOrders([...this.orders.values()]),
+      this.persistence.saveTasks([...this.tasks.values()]),
+    ]);
   }
 }
