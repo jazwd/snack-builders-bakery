@@ -130,7 +130,8 @@ export class KitchenScheduler {
     private readonly onOrderChanged: (order: Order) => void,
     private readonly persistence?: PersistenceGateway,
     ovenCount = 2,
-    slotsPerOven = 3
+    slotsPerOven = 3,
+    private readonly seedMenuOnStart = true
   ) {
     this.minuteDurationMs = Number(
       process.env.BAKE_TIME_SCALE_MS_PER_MIN ?? '1000'
@@ -146,7 +147,9 @@ export class KitchenScheduler {
 
   async initialize(): Promise<void> {
     if (!this.persistence) {
-      await this.seedMenu();
+      if (this.seedMenuOnStart) {
+        await this.seedMenu();
+      }
       this.startReconciliationLoop();
       return;
     }
@@ -176,7 +179,7 @@ export class KitchenScheduler {
       }
     }
 
-    if (this.menu.size === 0) {
+    if (this.menu.size === 0 && this.seedMenuOnStart) {
       await this.seedMenu();
       for (const item of this.menu.values()) {
         await this.persistence.saveMenuItem(item);

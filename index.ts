@@ -50,7 +50,7 @@ app.get(
 
 async function startServer(): Promise<void> {
   const env = getEnvConfig();
-  await initializeAppState();
+  await initializeAppState(env);
   await app.listen({ port: env.port, host: '0.0.0.0' });
 }
 
