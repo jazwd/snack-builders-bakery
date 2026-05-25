@@ -1,5 +1,4 @@
 import {
-  BAKE_MINUTES_BY_CATEGORY,
   type Category,
   type MenuItem,
   type Order,
@@ -9,7 +8,7 @@ import {
 } from '../models/domain';
 import type { Clock } from '../utils/clock';
 import { Mutex } from '../utils/mutex';
-import { PaymentService } from './payment.service';
+import type { PaymentService } from './payment.service';
 import type {
   PersistenceGateway,
   SequentialType,
@@ -131,13 +130,13 @@ export class KitchenScheduler {
     private readonly persistence?: PersistenceGateway,
     ovenCount = 2,
     slotsPerOven = 3,
-    private readonly seedMenuOnStart = true
+    private readonly seedMenuOnStart = true,
   ) {
     this.minuteDurationMs = Number(
-      process.env.BAKE_TIME_SCALE_MS_PER_MIN ?? '1000'
+      process.env.BAKE_TIME_SCALE_MS_PER_MIN ?? '1000',
     );
     this.reconcileIntervalMs = Number(
-      process.env.BAKE_RECONCILE_INTERVAL_MS ?? '1000'
+      process.env.BAKE_RECONCILE_INTERVAL_MS ?? '1000',
     );
     this.ovens = Array.from({ length: ovenCount }, (_, ovenIndex) => ({
       id: ovenIndex + 1,
@@ -255,7 +254,7 @@ export class KitchenScheduler {
       category: Category;
       price: number;
       active: boolean;
-    }>
+    }>,
   ): Promise<MenuItem> {
     const existing = this.menu.get(id);
     if (!existing) {
@@ -335,7 +334,7 @@ export class KitchenScheduler {
       const paymentResult = await this.paymentService.processPayment(
         input.paymentMethod,
         totalPrice,
-        orderId
+        orderId,
       );
       if (!paymentResult.approved) {
         throw new Error('Payment was declined');
@@ -376,7 +375,7 @@ export class KitchenScheduler {
 
   async updateOrderStatus(
     orderId: string,
-    status: Order['status']
+    status: Order['status'],
   ): Promise<Order> {
     return this.mutex.runExclusive(async () => {
       const order = this.orders.get(orderId);
@@ -393,13 +392,13 @@ export class KitchenScheduler {
       }
 
       const orderTasks = [...this.tasks.values()].filter(
-        (task) => task.orderId === orderId
+        (task) => task.orderId === orderId,
       );
 
       const allQueued = orderTasks.every((task) => task.status === 'queued');
       if (!allQueued) {
         throw new Error(
-          'Order cannot be canceled because at least one related task is not queued'
+          'Order cannot be canceled because at least one related task is not queued',
         );
       }
 
@@ -532,7 +531,7 @@ export class KitchenScheduler {
         typeof task.slotIndex === 'number'
       ) {
         const oven = this.ovens.find(
-          (candidate) => candidate.id === task.ovenId
+          (candidate) => candidate.id === task.ovenId,
         );
         if (oven) {
           oven.slots[task.slotIndex].taskId = null;
@@ -628,7 +627,7 @@ export class KitchenScheduler {
 
       const allDone = orderTasks.every((task) => task.status === 'done');
       const allCanceled = orderTasks.every(
-        (task) => task.status === 'canceled'
+        (task) => task.status === 'canceled',
       );
       const anyBaking = orderTasks.some((task) => task.status === 'baking');
 
@@ -639,19 +638,19 @@ export class KitchenScheduler {
       } else if (allDone) {
         order.status = 'delivery';
         const deliveredAt = Math.max(
-          ...orderTasks.map((task) => task.doneAt ?? now)
+          ...orderTasks.map((task) => task.doneAt ?? now),
         );
         order.deliveredAt = deliveredAt;
         order.estimatedReadyAt = deliveredAt;
       } else if (anyBaking) {
         order.status = 'baking';
         order.estimatedReadyAt = Math.max(
-          ...orderTasks.map((task) => task.estimatedEndAt ?? now)
+          ...orderTasks.map((task) => task.estimatedEndAt ?? now),
         );
       } else {
         order.status = 'queued';
         order.estimatedReadyAt = Math.max(
-          ...orderTasks.map((task) => task.estimatedEndAt ?? now)
+          ...orderTasks.map((task) => task.estimatedEndAt ?? now),
         );
       }
 
@@ -763,7 +762,7 @@ export class KitchenScheduler {
         (task) =>
           task.status === 'baking' &&
           typeof task.expectedDoneAt === 'number' &&
-          task.expectedDoneAt <= now
+          task.expectedDoneAt <= now,
       )
       .map((task) => task.id);
 
