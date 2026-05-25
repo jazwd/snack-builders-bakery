@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { SocketStream } from '@fastify/websocket';
-import { scheduler, orderSubscribers } from '../services/app-state';
+import { scheduler, orderSubscribers } from '../app/app-state';
 
 export function subscribeOrderStatus(
   connection: SocketStream,

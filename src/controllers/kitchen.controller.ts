@@ -1,4 +1,4 @@
-import { scheduler } from '../services/app-state';
+import { scheduler } from '../app/app-state';
 
 export async function getKitchenStatus(): Promise<
   ReturnType<typeof scheduler.getKitchenSnapshot>

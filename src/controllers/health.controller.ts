@@ -1,4 +1,4 @@
-import { pingMongo } from '../services/mongo.service';
+import { pingMongo } from '../config/mongo.service';
 
 export async function getHealth(): Promise<Record<string, string | boolean>> {
   const mongoConnected = await pingMongo();

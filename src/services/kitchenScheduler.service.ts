@@ -10,7 +10,10 @@ import {
 import type { Clock } from '../utils/clock';
 import { Mutex } from '../utils/mutex';
 import { PaymentService } from './payment.service';
-import type { PersistenceGateway } from './persistence.types';
+import type {
+  PersistenceGateway,
+  SequentialType,
+} from '../repositories/persistence.types';
 
 class TaskPriorityQueue {
   private heap: Task[] = [];
@@ -111,6 +114,13 @@ export class KitchenScheduler {
   private readonly taskTimers = new Map<string, NodeJS.Timeout>();
   private readonly mutex = new Mutex();
   private readonly minuteDurationMs: number;
+  private readonly reconcileIntervalMs: number;
+  private reconcileTimer: NodeJS.Timeout | undefined;
+  private readonly fallbackIdCounters: Record<SequentialType, number> = {
+    menu: 0,
+    ord: 0,
+    tsk: 0,
+  };
   private ticketCounter = 1000;
   private sequenceCounter = 0;
 
@@ -125,6 +135,9 @@ export class KitchenScheduler {
     this.minuteDurationMs = Number(
       process.env.BAKE_TIME_SCALE_MS_PER_MIN ?? '1000'
     );
+    this.reconcileIntervalMs = Number(
+      process.env.BAKE_RECONCILE_INTERVAL_MS ?? '1000'
+    );
     this.ovens = Array.from({ length: ovenCount }, (_, ovenIndex) => ({
       id: ovenIndex + 1,
       slots: Array.from({ length: slotsPerOven }, () => ({ taskId: null })),
@@ -133,7 +146,8 @@ export class KitchenScheduler {
 
   async initialize(): Promise<void> {
     if (!this.persistence) {
-      this.seedMenu();
+      await this.seedMenu();
+      this.startReconciliationLoop();
       return;
     }
 
@@ -163,7 +177,7 @@ export class KitchenScheduler {
     }
 
     if (this.menu.size === 0) {
-      this.seedMenu();
+      await this.seedMenu();
       for (const item of this.menu.values()) {
         await this.persistence.saveMenuItem(item);
       }
@@ -173,10 +187,11 @@ export class KitchenScheduler {
     this.recalculateEstimatesAndStatuses();
     this.dispatchAvailableSlots();
     this.recalculateEstimatesAndStatuses();
+    this.startReconciliationLoop();
     await this.persistState();
   }
 
-  private seedMenu(): void {
+  private async seedMenu(): Promise<void> {
     const now = this.clock.now();
 
     const defaults: Array<Omit<MenuItem, 'id' | 'createdAt' | 'updatedAt'>> = [
@@ -196,7 +211,7 @@ export class KitchenScheduler {
     ];
 
     for (const item of defaults) {
-      const id = this.createId('menu');
+      const id = await this.createId('menu');
       this.menu.set(id, {
         ...item,
         id,
@@ -217,7 +232,7 @@ export class KitchenScheduler {
   }): Promise<MenuItem> {
     const now = this.clock.now();
     const menuItem: MenuItem = {
-      id: this.createId('menu'),
+      id: await this.createId('menu'),
       name: input.name,
       category: input.category,
       price: input.price,
@@ -270,8 +285,8 @@ export class KitchenScheduler {
       }
 
       const now = this.clock.now();
-      const orderId = this.createId('ord');
-      const taskIds: string[] = [];
+      const orderId = await this.createId('ord');
+      const createdTasks: Task[] = [];
       let totalPrice = 0;
       const itemLines: Order['itemLines'] = [];
 
@@ -296,7 +311,7 @@ export class KitchenScheduler {
 
         for (let i = 0; i < requestItem.quantity; i += 1) {
           const task: Task = {
-            id: this.createId('tsk'),
+            id: await this.createId('tsk'),
             orderId,
             menuItemId: menuItem.id,
             menuItemName: menuItem.name,
@@ -310,7 +325,7 @@ export class KitchenScheduler {
 
           this.tasks.set(task.id, task);
           this.queue.enqueue(task);
-          taskIds.push(task.id);
+          createdTasks.push(task);
         }
       }
 
@@ -331,7 +346,6 @@ export class KitchenScheduler {
         priorityLevel: input.priorityLevel,
         totalPrice,
         itemLines,
-        taskIds,
         createdAt: now,
         updatedAt: now,
         estimatedReadyAt: now,
@@ -341,12 +355,7 @@ export class KitchenScheduler {
       this.recalculateEstimatesAndStatuses();
       this.dispatchAvailableSlots();
       this.recalculateEstimatesAndStatuses();
-      await this.persistence?.saveOrderWithTasks(
-        order,
-        taskIds
-          .map((id) => this.tasks.get(id))
-          .filter((task): task is Task => Boolean(task))
-      );
+      await this.persistence?.saveOrderWithTasks(order, createdTasks);
       await this.persistState();
       return this.mustGetOrder(order.id);
     });
@@ -354,6 +363,79 @@ export class KitchenScheduler {
 
   getOrder(orderId: string): Order | undefined {
     return this.orders.get(orderId);
+  }
+
+  listOrderTasks(orderId: string): Task[] {
+    return [...this.tasks.values()]
+      .filter((task) => task.orderId === orderId)
+      .sort((a, b) => a.sequence - b.sequence);
+  }
+
+  async updateOrderStatus(
+    orderId: string,
+    status: Order['status']
+  ): Promise<Order> {
+    return this.mutex.runExclusive(async () => {
+      const order = this.orders.get(orderId);
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      if (status !== 'canceled') {
+        throw new Error('Only canceled status is supported for manual updates');
+      }
+
+      if (order.status === 'canceled') {
+        return order;
+      }
+
+      const orderTasks = [...this.tasks.values()].filter(
+        (task) => task.orderId === orderId
+      );
+
+      const allQueued = orderTasks.every((task) => task.status === 'queued');
+      if (!allQueued) {
+        throw new Error(
+          'Order cannot be canceled because at least one related task is not queued'
+        );
+      }
+
+      const now = this.clock.now();
+      for (const task of orderTasks) {
+        task.status = 'canceled';
+        task.doneAt = now;
+        task.estimatedStartAt = now;
+        task.estimatedEndAt = now;
+        task.ovenId = undefined;
+        task.slotIndex = undefined;
+      }
+
+      // Remove canceled tasks from queue by rebuilding it from remaining queued tasks.
+      this.queue.clear();
+      for (const task of this.tasks.values()) {
+        if (task.status === 'queued') {
+          this.queue.enqueue(task);
+        }
+      }
+
+      order.status = 'canceled';
+      order.updatedAt = now;
+      order.deliveredAt = undefined;
+      order.estimatedReadyAt = now;
+      this.onOrderChanged(order);
+
+      await this.persistState();
+      return order;
+    });
+  }
+
+  listOrders(status?: Order['status']): Order[] {
+    const orders = [...this.orders.values()];
+    const filtered = status
+      ? orders.filter((order) => order.status === status)
+      : orders;
+
+    return filtered.sort((a, b) => b.createdAt - a.createdAt);
   }
 
   getKitchenSnapshot(): {
@@ -504,6 +586,11 @@ export class KitchenScheduler {
         task.estimatedStartAt = task.doneAt;
         task.estimatedEndAt = task.doneAt;
       }
+
+      if (task.status === 'canceled') {
+        task.estimatedStartAt = task.doneAt;
+        task.estimatedEndAt = task.doneAt;
+      }
     }
 
     const queuedTasks = this.queue.snapshotSorted();
@@ -517,11 +604,18 @@ export class KitchenScheduler {
       task.estimatedEndAt = estimatedEndAt;
     }
 
+    const tasksByOrderId = new Map<string, Task[]>();
+    for (const task of this.tasks.values()) {
+      const bucket = tasksByOrderId.get(task.orderId);
+      if (bucket) {
+        bucket.push(task);
+      } else {
+        tasksByOrderId.set(task.orderId, [task]);
+      }
+    }
+
     for (const order of this.orders.values()) {
-      const orderTaskIds = Array.isArray(order.taskIds) ? order.taskIds : [];
-      const orderTasks = orderTaskIds
-        .map((taskId) => this.tasks.get(taskId))
-        .filter((task): task is Task => Boolean(task));
+      const orderTasks = tasksByOrderId.get(order.id) ?? [];
 
       if (orderTasks.length === 0) {
         order.updatedAt = now;
@@ -530,9 +624,16 @@ export class KitchenScheduler {
       }
 
       const allDone = orderTasks.every((task) => task.status === 'done');
+      const allCanceled = orderTasks.every(
+        (task) => task.status === 'canceled'
+      );
       const anyBaking = orderTasks.some((task) => task.status === 'baking');
 
-      if (allDone) {
+      if (allCanceled) {
+        order.status = 'canceled';
+        order.deliveredAt = undefined;
+        order.estimatedReadyAt = now;
+      } else if (allDone) {
         order.status = 'delivery';
         const deliveredAt = Math.max(
           ...orderTasks.map((task) => task.doneAt ?? now)
@@ -581,10 +682,13 @@ export class KitchenScheduler {
     return new Date(value).toISOString();
   }
 
-  private createId(prefix: string): string {
-    return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now()
-      .toString(36)
-      .slice(-4)}`;
+  private async createId(prefix: SequentialType): Promise<string> {
+    if (this.persistence) {
+      return this.persistence.nextId(prefix);
+    }
+
+    this.fallbackIdCounters[prefix] += 1;
+    return `${prefix}_${this.fallbackIdCounters[prefix]}`;
   }
 
   private rebuildOvenAssignments(): void {
@@ -637,5 +741,31 @@ export class KitchenScheduler {
       this.persistence.saveOrders([...this.orders.values()]),
       this.persistence.saveTasks([...this.tasks.values()]),
     ]);
+  }
+
+  private startReconciliationLoop(): void {
+    if (this.reconcileTimer || this.reconcileIntervalMs <= 0) {
+      return;
+    }
+
+    this.reconcileTimer = setInterval(() => {
+      void this.reconcileOverdueBakingTasks();
+    }, this.reconcileIntervalMs);
+  }
+
+  private async reconcileOverdueBakingTasks(): Promise<void> {
+    const now = this.clock.now();
+    const overdueTaskIds = [...this.tasks.values()]
+      .filter(
+        (task) =>
+          task.status === 'baking' &&
+          typeof task.expectedDoneAt === 'number' &&
+          task.expectedDoneAt <= now
+      )
+      .map((task) => task.id);
+
+    for (const taskId of overdueTaskIds) {
+      await this.finishTask(taskId);
+    }
   }
 }

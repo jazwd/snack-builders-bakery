@@ -1,8 +1,8 @@
 export type Category = 'cookies' | 'pastries' | 'breads';
 export type PaymentMethod = 'cash' | 'credit_card';
 export type PriorityLevel = 1 | 2 | 3;
-export type OrderStatus = 'queued' | 'baking' | 'delivery';
-export type TaskStatus = 'queued' | 'baking' | 'done';
+export type OrderStatus = 'queued' | 'baking' | 'delivery' | 'canceled';
+export type TaskStatus = 'queued' | 'baking' | 'done' | 'canceled';
 
 export const BAKE_MINUTES_BY_CATEGORY: Record<Category, number> = {
   cookies: 5,
@@ -58,7 +58,6 @@ export interface Order {
     unitPrice: number;
     lineTotal: number;
   }>;
-  taskIds: string[];
   createdAt: number;
   updatedAt: number;
   estimatedReadyAt: number;
