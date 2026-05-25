@@ -5,10 +5,10 @@ import {
   CashPaymentProcessor,
   CreditCardPaymentProcessor,
   PaymentService,
-} from './payment.service';
-import { KitchenScheduler } from './kitchenScheduler.service';
-import { getDb } from './mongo.service';
-import { MongoBakeryRepository } from './mongo-bakery.repository';
+} from '../services/payment.service';
+import { KitchenScheduler } from '../services/kitchenScheduler.service';
+import { getDb } from '../config/mongo.service';
+import { MongoBakeryRepository } from '../repositories/mongo-bakery.repository';
 
 export const orderSubscribers = new Map<string, Set<SocketLike>>();
 

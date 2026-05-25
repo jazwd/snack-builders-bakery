@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Category } from '../models/domain';
 import { isCategory } from '../models/domain';
-import { scheduler } from '../services/app-state';
+import { scheduler } from '../app/app-state';
 
 export async function getMenu(): Promise<{
   items: ReturnType<typeof scheduler.listMenu>;

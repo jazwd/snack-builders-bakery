@@ -2,10 +2,34 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   isPaymentMethod,
   isPriorityLevel,
+  type OrderStatus,
   type PlaceOrderInput,
 } from '../models/domain';
-import { scheduler } from '../services/app-state';
-import { round2, serializeOrder } from '../utils/serializers';
+import { scheduler } from '../app/app-state';
+import { round2, serializeOrder, serializeTask } from '../utils/serializers';
+
+const ORDER_STATUSES: OrderStatus[] = [
+  'queued',
+  'baking',
+  'delivery',
+  'canceled',
+];
+
+export async function getOrders(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<FastifyReply> {
+  const query = request.query as { status?: string };
+
+  if (query.status && !ORDER_STATUSES.includes(query.status as OrderStatus)) {
+    return reply
+      .code(400)
+      .send({ error: 'status must be queued, baking, delivery, or canceled.' });
+  }
+
+  const orders = scheduler.listOrders(query.status as OrderStatus | undefined);
+  return reply.send({ items: orders.map(serializeOrder) });
+}
 
 export async function createOrder(
   request: FastifyRequest,
@@ -59,4 +83,46 @@ export async function getOrderById(
   }
 
   return reply.send(serializeOrder(order));
+}
+
+export async function getOrderTasks(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<FastifyReply> {
+  const params = request.params as { orderId: string };
+  const order = scheduler.getOrder(params.orderId);
+  if (!order) {
+    return reply.code(404).send({ error: 'Order not found.' });
+  }
+
+  const tasks = scheduler.listOrderTasks(params.orderId);
+  return reply.send({ items: tasks.map(serializeTask) });
+}
+
+export async function updateOrder(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<FastifyReply> {
+  const params = request.params as { orderId: string };
+  const body = request.body as { status?: string };
+
+  if (!body.status || !ORDER_STATUSES.includes(body.status as OrderStatus)) {
+    return reply
+      .code(400)
+      .send({ error: 'status must be queued, baking, delivery, or canceled.' });
+  }
+
+  try {
+    const order = await scheduler.updateOrderStatus(
+      params.orderId,
+      body.status as OrderStatus
+    );
+    return reply.send(serializeOrder(order));
+  } catch (error) {
+    const message = (error as Error).message;
+    if (message === 'Order not found') {
+      return reply.code(404).send({ error: message });
+    }
+    return reply.code(400).send({ error: message });
+  }
 }

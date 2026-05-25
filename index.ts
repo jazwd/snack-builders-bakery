@@ -11,10 +11,16 @@ import {
   updateMenuItem,
 } from './src/controllers/menu.controller';
 import { getKitchenStatus } from './src/controllers/kitchen.controller';
-import { createOrder, getOrderById } from './src/controllers/orders.controller';
+import {
+  createOrder,
+  getOrderById,
+  getOrderTasks,
+  getOrders,
+  updateOrder,
+} from './src/controllers/orders.controller';
 import { subscribeOrderStatus } from './src/controllers/order-ws.controller';
-import { initializeAppState } from './src/services/app-state';
-import { getEnvConfig } from './src/services/config.service';
+import { initializeAppState } from './src/app/app-state';
+import { getEnvConfig } from './src/config/config.service';
 
 const app = Fastify({ logger: true });
 const API_PREFIX = '/api';
@@ -29,7 +35,10 @@ app.put(`${API_PREFIX}/menu/:id`, updateMenuItem);
 app.delete(`${API_PREFIX}/menu/:id`, deleteMenuItem);
 
 app.post(`${API_PREFIX}/orders`, createOrder);
+app.get(`${API_PREFIX}/orders`, getOrders);
 app.get(`${API_PREFIX}/orders/:orderId`, getOrderById);
+app.get(`${API_PREFIX}/orders/:orderId/tasks`, getOrderTasks);
+app.patch(`${API_PREFIX}/orders/:orderId`, updateOrder);
 
 app.get(`${API_PREFIX}/kitchen/status`, getKitchenStatus);
 

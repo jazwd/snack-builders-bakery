@@ -1,24 +1,21 @@
-import {
-  MongoServerError,
-  type Db,
-  type Document,
-  type Filter,
-  type OptionalId,
-} from 'mongodb';
+import { MongoServerError, type Db, type Document } from 'mongodb';
 import type { MenuItem, Order, Task } from '../models/domain';
 import type {
   PersistenceGateway,
   PersistenceSnapshot,
+  SequentialType,
 } from './persistence.types';
 
 const MENU_COLLECTION = 'menu_items';
 const ORDERS_COLLECTION = 'orders';
 const TASKS_COLLECTION = 'tasks';
+const COUNTERS_COLLECTION = 'counters';
 
 const numericBsonTypes = ['double', 'int', 'long', 'decimal'];
 
 type MenuItemDoc = {
-  _id: string;
+  _id: unknown;
+  menuId: string;
   name: string;
   category: MenuItem['category'];
   price: number;
@@ -28,7 +25,8 @@ type MenuItemDoc = {
 };
 
 type OrderDoc = {
-  _id: string;
+  _id: unknown;
+  orderId: string;
   ticketNumber: number;
   status: Order['status'];
   paymentMethod: Order['paymentMethod'];
@@ -45,7 +43,6 @@ type OrderDoc = {
     unitPrice: number;
     lineTotal: number;
   }>;
-  taskIds: string[];
   estimatedReadyAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -53,7 +50,8 @@ type OrderDoc = {
 };
 
 type TaskDoc = {
-  _id: string;
+  _id: unknown;
+  taskId: string;
   orderId: string;
   menuItemId: string;
   menuItemName: string;
@@ -72,6 +70,11 @@ type TaskDoc = {
   slotIndex?: number;
 };
 
+type CounterDoc = {
+  _id: SequentialType;
+  seq: number;
+};
+
 function toDate(value: number | undefined): Date | undefined {
   if (!value) {
     return undefined;
@@ -86,9 +89,9 @@ function toMillis(value: Date | undefined): number | undefined {
   return value.getTime();
 }
 
-function toMenuDoc(item: MenuItem): MenuItemDoc {
+function toMenuDoc(item: MenuItem): Omit<MenuItemDoc, '_id'> {
   return {
-    _id: item.id,
+    menuId: item.id,
     name: item.name,
     category: item.category,
     price: item.price,
@@ -99,9 +102,8 @@ function toMenuDoc(item: MenuItem): MenuItemDoc {
 }
 
 function fromMenuDoc(doc: MenuItemDoc): MenuItem {
-  const rawDoc = doc as unknown as Record<string, unknown>;
   return {
-    id: String(rawDoc._id),
+    id: doc.menuId,
     name: doc.name,
     category: doc.category,
     price: doc.price,
@@ -111,9 +113,9 @@ function fromMenuDoc(doc: MenuItemDoc): MenuItem {
   };
 }
 
-function toOrderDoc(order: Order): OrderDoc {
+function toOrderDoc(order: Order): Omit<OrderDoc, '_id'> {
   return {
-    _id: order.id,
+    orderId: order.id,
     ticketNumber: order.ticketNumber,
     status: order.status,
     paymentMethod: order.paymentMethod,
@@ -127,7 +129,6 @@ function toOrderDoc(order: Order): OrderDoc {
     },
     totalPrice: order.totalPrice,
     itemLines: order.itemLines,
-    taskIds: order.taskIds,
     estimatedReadyAt: new Date(order.estimatedReadyAt),
     createdAt: new Date(order.createdAt),
     updatedAt: new Date(order.updatedAt),
@@ -136,14 +137,8 @@ function toOrderDoc(order: Order): OrderDoc {
 }
 
 function fromOrderDoc(doc: OrderDoc): Order {
-  const rawDoc = doc as unknown as Record<string, unknown>;
-  const rawTaskIds = rawDoc.taskIds;
-  const taskIds = Array.isArray(rawTaskIds)
-    ? rawTaskIds.map((taskId) => String(taskId))
-    : [];
-
   return {
-    id: String(rawDoc._id),
+    id: doc.orderId,
     ticketNumber: doc.ticketNumber,
     status: doc.status,
     paymentMethod: doc.paymentMethod,
@@ -155,7 +150,6 @@ function fromOrderDoc(doc: OrderDoc): Order {
           menuItemId: String(line.menuItemId),
         }))
       : [],
-    taskIds,
     estimatedReadyAt: doc.estimatedReadyAt.getTime(),
     createdAt: doc.createdAt.getTime(),
     updatedAt: doc.updatedAt.getTime(),
@@ -163,9 +157,9 @@ function fromOrderDoc(doc: OrderDoc): Order {
   };
 }
 
-function toTaskDoc(task: Task): TaskDoc {
+function toTaskDoc(task: Task): Omit<TaskDoc, '_id'> {
   return {
-    _id: task.id,
+    taskId: task.id,
     orderId: task.orderId,
     menuItemId: task.menuItemId,
     menuItemName: task.menuItemName,
@@ -186,12 +180,10 @@ function toTaskDoc(task: Task): TaskDoc {
 }
 
 function fromTaskDoc(doc: TaskDoc): Task {
-  const rawDoc = doc as unknown as Record<string, unknown>;
-
   return {
-    id: String(rawDoc._id),
-    orderId: String(rawDoc.orderId),
-    menuItemId: String(rawDoc.menuItemId),
+    id: doc.taskId,
+    orderId: String(doc.orderId),
+    menuItemId: String(doc.menuItemId),
     menuItemName: doc.menuItemName,
     category: doc.category,
     bakeMinutes: doc.bakeMinutes,
@@ -219,6 +211,19 @@ export class MongoBakeryRepository implements PersistenceGateway {
     await this.ensureIndexes();
   }
 
+  async nextId(type: SequentialType): Promise<string> {
+    const result = await this.db
+      .collection<CounterDoc>(COUNTERS_COLLECTION)
+      .findOneAndUpdate(
+        { _id: type },
+        { $inc: { seq: 1 } },
+        { upsert: true, returnDocument: 'after' }
+      );
+
+    const seq = Number(result?.seq ?? 1);
+    return `${type}_${seq}`;
+  }
+
   async loadSnapshot(): Promise<PersistenceSnapshot> {
     const [menuDocs, orderDocs, taskDocs] = await Promise.all([
       this.db.collection<MenuItemDoc>(MENU_COLLECTION).find({}).toArray(),
@@ -237,26 +242,20 @@ export class MongoBakeryRepository implements PersistenceGateway {
     const doc = toMenuDoc(item);
     await this.db
       .collection<MenuItemDoc>(MENU_COLLECTION)
-      .updateOne({ _id: doc._id }, { $set: doc }, { upsert: true });
+      .updateOne({ menuId: doc.menuId }, { $set: doc }, { upsert: true });
   }
 
   async deleteMenuItem(id: string): Promise<void> {
     await this.db
       .collection<MenuItemDoc>(MENU_COLLECTION)
-      .deleteOne({ _id: id });
+      .deleteOne({ menuId: id });
   }
 
   async saveOrder(order: Order): Promise<void> {
     const doc = toOrderDoc(order);
-    const { _id, ...updateFields } = doc;
-    await this.db.collection<OrderDoc>(ORDERS_COLLECTION).updateOne(
-      { ticketNumber: doc.ticketNumber },
-      {
-        $set: updateFields,
-        $setOnInsert: { _id },
-      },
-      { upsert: true }
-    );
+    await this.db
+      .collection<OrderDoc>(ORDERS_COLLECTION)
+      .updateOne({ orderId: doc.orderId }, { $set: doc }, { upsert: true });
   }
 
   async saveOrders(orders: Order[]): Promise<void> {
@@ -267,14 +266,10 @@ export class MongoBakeryRepository implements PersistenceGateway {
     await this.db.collection<OrderDoc>(ORDERS_COLLECTION).bulkWrite(
       orders.map((order) => {
         const doc = toOrderDoc(order);
-        const { _id, ...updateFields } = doc;
         return {
           updateOne: {
-            filter: { ticketNumber: doc.ticketNumber },
-            update: {
-              $set: updateFields,
-              $setOnInsert: { _id },
-            },
+            filter: { orderId: doc.orderId },
+            update: { $set: doc },
             upsert: true,
           },
         };
@@ -292,7 +287,7 @@ export class MongoBakeryRepository implements PersistenceGateway {
         const doc = toTaskDoc(task);
         return {
           updateOne: {
-            filter: { _id: doc._id },
+            filter: { taskId: doc.taskId },
             update: { $set: doc },
             upsert: true,
           },
@@ -311,7 +306,7 @@ export class MongoBakeryRepository implements PersistenceGateway {
       $jsonSchema: {
         bsonType: 'object',
         required: [
-          '_id',
+          'menuId',
           'name',
           'category',
           'price',
@@ -321,7 +316,7 @@ export class MongoBakeryRepository implements PersistenceGateway {
         ],
         additionalProperties: true,
         properties: {
-          _id: { bsonType: ['string', 'objectId'] },
+          menuId: { bsonType: 'string', pattern: '^menu_[0-9]+$' },
           name: { bsonType: 'string', minLength: 1 },
           category: { enum: ['cookies', 'pastries', 'breads'] },
           price: { bsonType: numericBsonTypes, minimum: 0 },
@@ -340,7 +335,7 @@ export class MongoBakeryRepository implements PersistenceGateway {
       $jsonSchema: {
         bsonType: 'object',
         required: [
-          '_id',
+          'orderId',
           'ticketNumber',
           'status',
           'paymentMethod',
@@ -348,16 +343,15 @@ export class MongoBakeryRepository implements PersistenceGateway {
           'payment',
           'totalPrice',
           'itemLines',
-          'taskIds',
           'estimatedReadyAt',
           'createdAt',
           'updatedAt',
         ],
         additionalProperties: true,
         properties: {
-          _id: { bsonType: ['string', 'objectId'] },
+          orderId: { bsonType: 'string', pattern: '^ord_[0-9]+$' },
           ticketNumber: { bsonType: ['int', 'long', 'double'], minimum: 1 },
-          status: { enum: ['queued', 'baking', 'delivery'] },
+          status: { enum: ['queued', 'baking', 'delivery', 'canceled'] },
           paymentMethod: { enum: ['cash', 'credit_card'] },
           priorityLevel: { enum: [1, 2, 3] },
           payment: {
@@ -377,17 +371,12 @@ export class MongoBakeryRepository implements PersistenceGateway {
               bsonType: 'object',
               required: ['menuItemId', 'quantity', 'unitPrice', 'lineTotal'],
               properties: {
-                menuItemId: { bsonType: ['string', 'objectId'] },
+                menuItemId: { bsonType: 'string', pattern: '^menu_[0-9]+$' },
                 quantity: { bsonType: ['int', 'long', 'double'], minimum: 1 },
                 unitPrice: { bsonType: numericBsonTypes, minimum: 0 },
                 lineTotal: { bsonType: numericBsonTypes, minimum: 0 },
               },
             },
-          },
-          taskIds: {
-            bsonType: 'array',
-            minItems: 0,
-            items: { bsonType: ['string', 'objectId'] },
           },
           estimatedReadyAt: { bsonType: 'date' },
           createdAt: { bsonType: 'date' },
@@ -405,7 +394,7 @@ export class MongoBakeryRepository implements PersistenceGateway {
       $jsonSchema: {
         bsonType: 'object',
         required: [
-          '_id',
+          'taskId',
           'orderId',
           'menuItemId',
           'menuItemName',
@@ -418,15 +407,15 @@ export class MongoBakeryRepository implements PersistenceGateway {
         ],
         additionalProperties: true,
         properties: {
-          _id: { bsonType: ['string', 'objectId'] },
-          orderId: { bsonType: ['string', 'objectId'] },
-          menuItemId: { bsonType: ['string', 'objectId'] },
+          taskId: { bsonType: 'string', pattern: '^tsk_[0-9]+$' },
+          orderId: { bsonType: 'string', pattern: '^ord_[0-9]+$' },
+          menuItemId: { bsonType: 'string', pattern: '^menu_[0-9]+$' },
           menuItemName: { bsonType: 'string' },
           category: { enum: ['cookies', 'pastries', 'breads'] },
           bakeMinutes: { enum: [5, 10, 20] },
           priorityLevel: { enum: [1, 2, 3] },
           sequence: { bsonType: ['int', 'long', 'double'], minimum: 0 },
-          status: { enum: ['queued', 'baking', 'done'] },
+          status: { enum: ['queued', 'baking', 'done', 'canceled'] },
           queuedAt: { bsonType: 'date' },
           bakingStartedAt: { bsonType: ['date', 'null'] },
           expectedDoneAt: { bsonType: ['date', 'null'] },
@@ -446,19 +435,27 @@ export class MongoBakeryRepository implements PersistenceGateway {
     await Promise.all([
       this.db
         .collection<MenuItemDoc>(MENU_COLLECTION)
-        .createIndexes([{ key: { active: 1 } }, { key: { category: 1 } }]),
+        .createIndexes([
+          { key: { menuId: 1 }, unique: true },
+          { key: { active: 1 } },
+          { key: { category: 1 } },
+        ]),
       this.db
         .collection<OrderDoc>(ORDERS_COLLECTION)
         .createIndexes([
+          { key: { orderId: 1 }, unique: true },
           { key: { ticketNumber: 1 }, unique: true },
           { key: { status: 1, priorityLevel: 1, createdAt: 1 } },
           { key: { estimatedReadyAt: 1 } },
+          { key: { 'itemLines.menuItemId': 1 } },
         ]),
       this.db
         .collection<TaskDoc>(TASKS_COLLECTION)
         .createIndexes([
+          { key: { taskId: 1 }, unique: true },
           { key: { status: 1, priorityLevel: 1, sequence: 1 } },
           { key: { orderId: 1 } },
+          { key: { menuItemId: 1 } },
           { key: { expectedDoneAt: 1 } },
         ]),
     ]);
