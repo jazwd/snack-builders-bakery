@@ -66,7 +66,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/health`
 - Auth: None
 
-    <img width="1320" height="464" alt="Screenshot 2026-05-26 at 12 36 59 PM" src="https://github.com/user-attachments/assets/fa8e4ad8-3753-4de9-8057-b05e8e8ed152" />
+        <img width="1320" height="464" alt="Screenshot 2026-05-26 at 12 36 59 PM" src="https://github.com/user-attachments/assets/fa8e4ad8-3753-4de9-8057-b05e8e8ed152" />
 
 Successful response example:
 
@@ -435,7 +435,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>`
 - Auth: Bearer Token (`<jwt_token>`)
 
-    <img width="1316" height="753" alt="Screenshot 2026-05-26 at 4 42 24 PM" src="https://github.com/user-attachments/assets/64050be2-2a90-4a7a-a41a-e5fe28795100" />
+        <img width="1316" height="753" alt="Screenshot 2026-05-26 at 4 42 24 PM" src="https://github.com/user-attachments/assets/64050be2-2a90-4a7a-a41a-e5fe28795100" />
 
 Errors:
 
@@ -462,7 +462,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>/tasks`
 - Auth: Bearer Token (`<jwt_token>`)
 
-    <img width="1316" height="858" alt="Screenshot 2026-05-26 at 4 47 04 PM" src="https://github.com/user-attachments/assets/df88146e-855e-4595-924e-ed52993ff569" />
+        <img width="1316" height="858" alt="Screenshot 2026-05-26 at 4 47 04 PM" src="https://github.com/user-attachments/assets/df88146e-855e-4595-924e-ed52993ff569" />
 
 Errors:
 
@@ -541,7 +541,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/kitchen/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
-    <img width="1315" height="856" alt="Screenshot 2026-05-26 at 5 11 22 PM" src="https://github.com/user-attachments/assets/e6c9947f-a951-4c7c-86f2-0d67f9d44070" />
+        <img width="1315" height="856" alt="Screenshot 2026-05-26 at 5 11 22 PM" src="https://github.com/user-attachments/assets/e6c9947f-a951-4c7c-86f2-0d67f9d44070" />
 
 Purpose:
 
@@ -644,7 +644,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
-    <img width="1316" height="382" alt="Screenshot 2026-05-26 at 6 32 42 PM" src="https://github.com/user-attachments/assets/e612c50f-6d48-4542-b504-8b00a0e90dcd" />
+        <img width="1316" height="382" alt="Screenshot 2026-05-26 at 6 32 42 PM" src="https://github.com/user-attachments/assets/e612c50f-6d48-4542-b504-8b00a0e90dcd" />
 
 Response example:
 
@@ -679,21 +679,45 @@ Errors:
 
 Copy `.env.example` to `.env` and adjust values as needed.
 
-Required:
+### Runtime variables used by the API
 
-- `MONGODB_URI`: MongoDB connection string. Example: `mongodb://127.0.0.1:27017`
+| Variable                     | Required                   | Default  | Purpose                                                                                       |
+| ---------------------------- | -------------------------- | -------- | --------------------------------------------------------------------------------------------- |
+| `PORT`                       | No                         | `3000`   | HTTP port where Fastify listens.                                                              |
+| `MONGODB_URI`                | Yes                        | None     | MongoDB connection string used by the repository layer.                                       |
+| `MONGODB_DB_NAME`            | No                         | `bakery` | Database name selected after connecting to MongoDB.                                           |
+| `JWT_SECRET`                 | Yes (for protected routes) | Empty    | Secret used to sign and verify JWT tokens in login/auth middleware.                           |
+| `JWT_EXPIRES_IN`             | No                         | `1h`     | Token lifetime passed to `jsonwebtoken` (for example `15m`, `1h`, `2d`).                      |
+| `AUTH_USERNAME`              | Yes (for login)            | Empty    | Username accepted by `POST /api/auth/login`.                                                  |
+| `AUTH_PASSWORD`              | Yes (for login)            | Empty    | Password accepted by `POST /api/auth/login`.                                                  |
+| `OVEN_COUNT`                 | No                         | `2`      | Number of ovens created by the kitchen scheduler.                                             |
+| `SLOTS_PER_OVEN`             | No                         | `3`      | Number of tray slots per oven used for concurrent baking capacity.                            |
+| `SEED_MENU_ON_START`         | No                         | `true`   | If `true`, seeds default menu items when menu is empty at startup.                            |
+| `BAKE_TIME_SCALE_MS_PER_MIN` | No                         | `1000`   | Time scaling for bake simulation. One logical bake minute equals this many real milliseconds. |
+| `BAKE_RECONCILE_INTERVAL_MS` | No                         | `1000`   | Interval for the reconciliation loop that completes overdue baking tasks.                     |
 
-Optional:
+### Compose/deployment variables (EC2 path)
 
-- `MONGODB_DB_NAME`: Database name. Default: `bakery`
-- `PORT`: API port. Default: `3000`
-- `JWT_EXPIRES_IN`: Token expiration (for example `1h`). Default: `1h`
+These are not consumed directly by application code, but they affect Docker Compose behavior in EC2 deployment.
 
-Required for JWT-protected routes:
+| Variable              | Required                    | Default                                                     | Purpose                                                                                                   |
+| --------------------- | --------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `GHCR_IMAGE`          | Yes in EC2 compose workflow | `snack-builder-bakery-api-api:latest` (fallback in compose) | Image tag used by `docker-compose.ec2.yml` for the API service.                                           |
+| `EC2_MONGODB_URI`     | No                          | `mongodb://mongo:27017`                                     | Optional override for API `MONGODB_URI` in `docker-compose.ec2.yml`. Use this for Atlas/external MongoDB. |
+| `EC2_MONGODB_DB_NAME` | No                          | `bakery`                                                    | Optional override for API `MONGODB_DB_NAME` in `docker-compose.ec2.yml`.                                  |
 
-- `JWT_SECRET`: Secret used to sign and verify tokens
-- `AUTH_USERNAME`: Login username for `/api/auth/login`
-- `AUTH_PASSWORD`: Login password for `/api/auth/login`
+### GitHub Secrets related to env injection
+
+For EC2 deployment workflow:
+
+- `ENV_FILE`: full multiline `.env` content written on the EC2 host before compose starts.
+- `EC2_MONGODB_URI` and `EC2_MONGODB_DB_NAME`: optional secrets used to generate compose overrides.
+
+### Quick recommendations
+
+- Use strong random values for `JWT_SECRET` in non-local environments.
+- Keep `AUTH_PASSWORD` and Mongo credentials only in secrets managers or CI secrets.
+- For local testing speed, keep bake scale low (for example `1000`). For more realistic simulation, increase it.
 
 ## Run
 
@@ -737,32 +761,95 @@ This split lets local work use current code quickly while EC2 uses immutable ima
 
 ## Docker Compose (Local)
 
-This repository includes Docker Compose for local setup with:
+Use this section to run the full application locally with containers.
+
+Services started by `docker-compose.yml`:
 
 - API (`api`)
 - MongoDB (`mongo`)
 - Prometheus (`prometheus`)
 - Grafana (`grafana`)
 
-Start everything:
+### Prerequisites
+
+1. Docker Desktop (or Docker Engine + Compose plugin) is installed.
+2. Docker daemon is running.
+3. Create `.env` from `.env.example` and set values for:
+    - `JWT_SECRET`
+    - `AUTH_USERNAME`
+    - `AUTH_PASSWORD`
+
+Quick daemon check:
 
 ```bash
-docker compose up -d --build
+docker info >/dev/null && echo "docker daemon up" || echo "docker daemon down"
 ```
 
-Endpoints:
+### First Run (or after dependency changes)
 
-- API: `http://localhost:3000`
+```bash
+docker compose down -v --remove-orphans
+docker compose up -d --build
+docker compose ps
+```
+
+What this does:
+
+- Recreates containers and network.
+- Rebuilds the API image from current source.
+- Starts all services in detached mode.
+
+### Daily Start (fast path)
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+### Verify Everything Is Healthy
+
+```bash
+curl -fsS http://localhost:3000/api/health
+curl -fsS http://localhost:3000/metrics | head -n 12
+curl -fsS http://localhost:9090/-/healthy
+curl -fsS http://localhost:3001/api/health
+```
+
+Expected endpoints:
+
+- API base: `http://localhost:3000`
 - API health: `http://localhost:3000/api/health`
 - API metrics: `http://localhost:3000/metrics`
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3001` (admin/admin)
+- Prometheus UI: `http://localhost:9090`
+- Grafana UI: `http://localhost:3001` (`admin` / `admin`)
 
-Stop everything:
+### Useful Logs and Debug Commands
+
+```bash
+docker compose logs --tail=200 api
+docker compose logs --tail=200 mongo
+docker compose logs -f api
+```
+
+### Stop and Cleanup
+
+Stop services but keep volumes/data:
 
 ```bash
 docker compose down
 ```
+
+Stop services and remove volumes (full reset):
+
+```bash
+docker compose down -v --remove-orphans
+```
+
+### Local Compose Behavior Notes
+
+- API always binds to host `3000` (`3000:3000`).
+- In local compose, API MongoDB target is `mongodb://mongo:27017` (container network).
+- If Docker is not running, compose commands fail with daemon connection errors.
 
 ## Observability: Prometheus and Grafana
 
