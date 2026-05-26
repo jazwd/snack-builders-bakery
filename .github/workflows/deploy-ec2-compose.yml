@@ -1,0 +1,87 @@
+name: Deploy to EC2 with Docker Compose
+
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - main
+
+permissions:
+    contents: read
+    packages: write
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Login to GHCR
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  push: true
+                  tags: ghcr.io/${{ github.repository }}:latest
+
+            - name: Deploy on EC2 host
+              uses: appleboy/ssh-action@v1.2.0
+              env:
+                  GHCR_IMAGE: ghcr.io/${{ github.repository }}:latest
+              with:
+                  host: ${{ secrets.EC2_HOST }}
+                  username: ${{ secrets.EC2_USER }}
+                  key: ${{ secrets.EC2_SSH_KEY }}
+                  envs: GHCR_IMAGE
+                  script: |
+                      set -e
+                      mkdir -p ${{ secrets.EC2_APP_DIR }}
+                      cd ${{ secrets.EC2_APP_DIR }}
+
+                      if [ ! -d .git ]; then
+                        git clone https://github.com/${{ github.repository }} .
+                      fi
+
+                      git fetch origin main
+                      git checkout main
+                      git reset --hard origin/main
+
+                      cat > .env << 'EOF'
+                      ${{ secrets.ENV_FILE }}
+                      EOF
+
+                      echo "GHCR_IMAGE=${GHCR_IMAGE}" > .deploy.env
+                      docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_TOKEN }}
+                      docker compose --env-file .deploy.env -f docker-compose.ec2.yml pull
+                      docker compose --env-file .deploy.env -f docker-compose.ec2.yml up -d --remove-orphans
+
+                      HEALTH_URL="http://localhost:3000/api/health"
+                      ATTEMPTS=30
+                      SLEEP_SECONDS=5
+
+                      for i in $(seq 1 "$ATTEMPTS"); do
+                        if curl -fsS "$HEALTH_URL" > /dev/null; then
+                          echo "Health check passed on attempt $i/$ATTEMPTS"
+                          break
+                        fi
+
+                        if [ "$i" -eq "$ATTEMPTS" ]; then
+                          echo "Health check failed after $ATTEMPTS attempts"
+                          docker compose --env-file .deploy.env -f docker-compose.ec2.yml ps
+                          docker compose --env-file .deploy.env -f docker-compose.ec2.yml logs --tail=200 api
+                          exit 1
+                        fi
+
+                        echo "Waiting for API health check ($i/$ATTEMPTS)..."
+                        sleep "$SLEEP_SECONDS"
+                      done
+
+                      docker image prune -f

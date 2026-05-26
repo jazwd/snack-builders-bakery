@@ -8,6 +8,7 @@ import {
 } from '../services/payment.service';
 import { KitchenScheduler } from '../services/kitchenScheduler.service';
 import { getDb } from '../config/mongo.service';
+import type { AppEnv } from '../config/config.service';
 import { MongoBakeryRepository } from '../repositories/mongo-bakery.repository';
 
 export const orderSubscribers = new Map<string, Set<SocketLike>>();
@@ -39,14 +40,17 @@ function broadcastOrderChanged(
   }
 }
 
-export async function initializeAppState(): Promise<void> {
+export async function initializeAppState(env: AppEnv): Promise<void> {
   const db = await getDb();
   const repository = new MongoBakeryRepository(db);
   scheduler = new KitchenScheduler(
     new SystemClock(),
     paymentService,
     broadcastOrderChanged,
-    repository
+    repository,
+    env.ovenCount,
+    env.slotsPerOven,
+    env.seedMenuOnStart
   );
   await scheduler.initialize();
 }

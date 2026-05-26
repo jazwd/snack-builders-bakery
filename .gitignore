@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
 
 # Environment variables
@@ -32,3 +31,6 @@ build/
 .cache/
 tmp/
 temp/
+
+# SSH pem file
+snack_builder_bakery.pem
