@@ -248,6 +248,11 @@ GitHub repository secrets required:
 - `GHCR_USERNAME`
 - `GHCR_TOKEN` (PAT with `read:packages`)
 
+Optional EC2 Mongo override secrets:
+
+- `EC2_MONGODB_URI` (set this to an Atlas URI if EC2 should use Atlas instead of local Docker Mongo)
+- `EC2_MONGODB_DB_NAME` (optional DB name override for EC2 compose)
+
 ## Production Notes
 
 - Keep JWT and auth credentials out of source control.
