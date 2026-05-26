@@ -121,6 +121,8 @@ Request body:
     "password": "your_auth_password"
 }
 ```
+**Note:** If you will test the app locally, please set the corresponding username and password in the .env file variables: AUTH_USERNAME and AUTH_PASSWORD.
+          If you want to use the Test URL in the AWS EC2 instance, please contact me at [jose.zamora.78@gmail.com](mailto:jose.zamora.78@gmail.com) to provide you with the credentials.  
 
 Example:
 
@@ -328,8 +330,14 @@ Errors:
 Request body:
 
 ```json
-<img width="1318" height="567" alt="Screenshot 2026-05-26 at 1 11 05 PM" src="https://github.com/user-attachments/assets/eab7a69b-aef2-4b7d-bc2b-d8e95a91410f" /><img width="1317" height="557" alt="Screenshot 2026-05-26 at 1 11 25 PM" src="https://github.com/user-attachments/assets/ad9e891e-15ab-4fda-b8e3-89bb315ff1cd" />
-
+{
+    "items": [
+        { "menuItemId": "menu_1", "quantity": 2 },
+        { "menuItemId": "menu_2", "quantity": 1 }
+    ],
+    "paymentMethod": "cash",
+    "priorityLevel": 2
+}
 ```
 **priorityLevel:** 1 = VIP, 2 = App/Delivery, 3 = Walk-in
 
@@ -358,7 +366,7 @@ Postman example:
 }
 ```
 
-
+<img width="1318" height="567" alt="Screenshot 2026-05-26 at 1 11 05 PM" src="https://github.com/user-attachments/assets/eab7a69b-aef2-4b7d-bc2b-d8e95a91410f" />
 
 Success response example:
 
@@ -372,6 +380,8 @@ Success response example:
     "websocket_tracking_url": "/api/ws/orders/ord_1"
 }
 ```
+
+**Note:** As was requested, a Ticker number is generated, and an "Estimated Ready Time" is returned as part of the response. Also, a WebSocket URL is returned to track the order in real time.
 
 Errors:
 
