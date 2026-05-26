@@ -5,6 +5,7 @@ High-performance backend API for Snack Builders Bakery to handle order managemen
 Our kitchen has 2 Ovens, each fitting 3 trays (Total capacity: 6 concurrent slots). The core challenge is managing a prioritized queue where VIP orders can affect the scheduling and estimations of all other active orders (**This can be handled by environment variables, the number of ovens, and their slots**).
 
 ### Core Requirements:
+
 - Menu Management: Users must be able to see our menu, and store managers should be able to add, remove, or update the items that we offer.
 - Order Placement: Customers need to be able to request one or multiple items. When an order is placed, the system must return a ticket to the customer with the price they need to pay. The customer should also have the ability to track the status of their order.
 - Payment Management: We need to be able to handle payments from the clients, accepting both cash and credit cards.
@@ -20,6 +21,7 @@ Our kitchen has 2 Ovens, each fitting 3 trays (Total capacity: 6 concurrent slot
     - Tier 3 (Walk-in): Standard priority.
 
 When an oven slot opens, the system must pick the highest-priority item from the queue first, subject to the following constraints:
+
 - You cannot remove a lower-priority item from the oven once it has started baking.
 - If a VIP order is placed, the estimated_ready_time for all lower-priority orders in the queue must be updated dynamically to reflect their new delayed position.
 
@@ -33,9 +35,9 @@ When an oven slot opens, the system must pick the highest-priority item from the
 - **Prometheus** client for Node.js, for handling metrics/monitoring.
 - **Grafana** to expose/show metrics and system performance.
 - **ESLint** as a spell-checker and code quality inspector in development and build (part of the Continuous integration workflow).
-- **Unit Tests** through the *Vitest* testing framework. It can be executed manually in development and is also part of the Continuous integration workflow.
+- **Unit Tests** through the _Vitest_ testing framework. It can be executed manually in development and is also part of the Continuous integration workflow.
 - **GitHub** to handle the versioning of the code (including commits, PRs) and to handle the CI and deployment of the app (using **GitHub Actions**).
-- **Docker Compose** for Orchestration (locally and in an **AWS EC2 instance** to test the endpoint in a Production environment).          
+- **Docker Compose** for Orchestration (locally and in an **AWS EC2 instance** to test the endpoint in a Production environment).
 
 ## HOW TO USE IT (API endpoints)
 
@@ -43,9 +45,7 @@ Base host used in this guide:
 
 - `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com`
 
-
 ### 1. Endpoints That Do **Not** Require Authentication
-
 
 #### 1.1 Health Check
 
@@ -66,7 +66,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/health`
 - Auth: None
 
-  <img width="1320" height="464" alt="Screenshot 2026-05-26 at 12 36 59 PM" src="https://github.com/user-attachments/assets/fa8e4ad8-3753-4de9-8057-b05e8e8ed152" />
+        <img width="1320" height="464" alt="Screenshot 2026-05-26 at 12 36 59 PM" src="https://github.com/user-attachments/assets/fa8e4ad8-3753-4de9-8057-b05e8e8ed152" />
 
 Successful response example:
 
@@ -78,7 +78,6 @@ Successful response example:
     "ready": true
 }
 ```
-
 
 #### 1.2 Prometheus Metrics
 
@@ -102,9 +101,7 @@ Postman example:
 
 <img width="1317" height="823" alt="Screenshot 2026-05-26 at 12 40 48 PM" src="https://github.com/user-attachments/assets/9300a2ef-8a1c-47ac-add5-00c9eaa4749e" />
 
-
 ### 2. Authentication Endpoint
-
 
 #### 2.1 Login (Get JWT Token)
 
@@ -121,8 +118,9 @@ Request body:
     "password": "your_auth_password"
 }
 ```
+
 **Note:** If you will test the app locally, please set the corresponding username and password in the .env file variables: AUTH_USERNAME and AUTH_PASSWORD.
-          If you want to use the Test URL in the AWS EC2 instance, please contact me at [jose.zamora.78@gmail.com](mailto:jose.zamora.78@gmail.com) to provide you with the credentials.  
+If you want to use the Test URL in the AWS EC2 instance, please contact me at [jose.zamora.78@gmail.com](mailto:jose.zamora.78@gmail.com) to provide you with the credentials.
 
 Example:
 
@@ -146,7 +144,7 @@ Postman example:
 }
 ```
 
-Tip: save `token` from response and use `Authorization: Bearer <token>` for protected endpoints.
+Tip: save `token` from response and use `Authorization: Bearer <token>` for protected endpoints. The **Token expires** in 1 hour; after this, you have to generate a new one.
 
 <img width="1319" height="466" alt="Screenshot 2026-05-26 at 12 43 39 PM" src="https://github.com/user-attachments/assets/d0b3b3a0-5c30-49fc-8bcf-1b463cda2ec8" />
 
@@ -236,6 +234,7 @@ Postman example:
     "price": 2.5
 }
 ```
+
 <img width="1315" height="551" alt="Screenshot 2026-05-26 at 12 50 31 PM" src="https://github.com/user-attachments/assets/a2867d56-49a0-4a08-a81a-0431736c0cdb" />
 
 Errors:
@@ -339,7 +338,9 @@ Request body:
     "priorityLevel": 2
 }
 ```
+
 **priorityLevel:** 1 = VIP, 2 = App/Delivery, 3 = Walk-in
+**paymentMethod:** The paymentMethod can be "credit_card" or "cash". The integrations, like the payment gateway or the integration with a bank to register a payment, are not part of the scope of this Coding exercise. Anyway, a Service (logic) has been implemented in code for further integration.
 
 Example:
 
@@ -377,7 +378,7 @@ Success response example:
     "total_price": 5,
     "estimated_ready_time": "2026-05-26T03:00:00.000Z",
     "status": "queued",
-  "status_tracking_url": "/api/orders/ticket/1001/status"
+    "status_tracking_url": "/api/orders/ticket/1001/status"
 }
 ```
 
@@ -407,6 +408,9 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders`
 - Auth: Bearer Token (`<jwt_token>`)
 - Params (optional): `status=queued`
+  **Status:** can be: 'queued' | 'baking' | 'delivery' | 'canceled'
+
+<img width="1316" height="870" alt="Screenshot 2026-05-26 at 4 38 46 PM" src="https://github.com/user-attachments/assets/05e49c35-98c9-4a50-bb7f-7fe492382072" />
 
 Errors:
 
@@ -431,11 +435,15 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>`
 - Auth: Bearer Token (`<jwt_token>`)
 
+        <img width="1316" height="753" alt="Screenshot 2026-05-26 at 4 42 24 PM" src="https://github.com/user-attachments/assets/64050be2-2a90-4a7a-a41a-e5fe28795100" />
+
 Errors:
 
 - `404`: Order not found
 
 #### 3.8 Orders - Get Tasks
+
+Each time an order is created, the corresponding baking "tasks" are created, too. This helps to handle the Kitchen status (ovens and slots).
 
 - Method: `GET`
 - Relative path: `/api/orders/:orderId/tasks`
@@ -454,11 +462,16 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>/tasks`
 - Auth: Bearer Token (`<jwt_token>`)
 
+        <img width="1316" height="858" alt="Screenshot 2026-05-26 at 4 47 04 PM" src="https://github.com/user-attachments/assets/df88146e-855e-4595-924e-ed52993ff569" />
+
 Errors:
 
 - `404`: Order not found
 
 #### 3.9 Orders - Update Status
+
+This endpoint only updates the "status" field, and more specifically, to cancel an order.
+An order can only be canceled if all its baking "tasks" are in "queued" status. If one of its tasks is in "baking" status, the order can't be canceled.
 
 - Method: `PATCH`
 - Relative path: `/api/orders/:orderId`
@@ -495,6 +508,8 @@ Postman example:
 }
 ```
 
+<img width="1316" height="805" alt="Screenshot 2026-05-26 at 5 09 05 PM" src="https://github.com/user-attachments/assets/1c83ceed-f2f5-4268-b68d-182a879f5fff" />
+
 Allowed status values:
 
 - `queued`
@@ -526,12 +541,95 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/kitchen/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
+        <img width="1315" height="856" alt="Screenshot 2026-05-26 at 5 11 22 PM" src="https://github.com/user-attachments/assets/e6c9947f-a951-4c7c-86f2-0d67f9d44070" />
+
+Purpose:
+
+- Returns current oven occupancy plus the queued tasks waiting to be baked.
+- Useful for kitchen dashboards, operational monitoring, and ETA expectations.
+
+Response shape:
+
+- `ovens`: list of ovens.
+- `ovens[].slots`: each slot in that oven.
+- `ovens[].slots[].slotIndex`: 1-based slot number shown to clients.
+- `ovens[].slots[].task`: `null` when free, otherwise active baking task data.
+- `waitingQueue`: queued tasks not yet assigned to an oven slot.
+
+Response example:
+
+```json
+{
+    "ovens": [
+        {
+            "ovenId": 1,
+            "slots": [
+                {
+                    "slotIndex": 1,
+                    "task": {
+                        "taskId": "tsk_10",
+                        "orderId": "ord_7",
+                        "item": "Butter Croissant",
+                        "category": "pastries",
+                        "priorityLevel": 1,
+                        "bakingStartedAt": "2026-05-26T15:10:00.000Z",
+                        "expectedDoneAt": "2026-05-26T15:20:00.000Z"
+                    }
+                },
+                {
+                    "slotIndex": 2,
+                    "task": null
+                }
+            ]
+        }
+    ],
+    "waitingQueue": [
+        {
+            "taskId": "tsk_11",
+            "orderId": "ord_8",
+            "item": "Classic Chocolate Cookie",
+            "category": "cookies",
+            "priorityLevel": 2,
+            "estimatedStartAt": "2026-05-26T15:20:00.000Z",
+            "estimatedEndAt": "2026-05-26T15:25:00.000Z"
+        }
+    ]
+}
+```
+
+How oven/slot assignment works:
+
+1. Each order item quantity is expanded into individual tasks.
+2. New tasks are pushed into a priority queue.
+3. Queue ordering is:
+    - lower `priorityLevel` first (`1` before `2` before `3`)
+    - if same priority, first created task first (FIFO by sequence)
+4. The dispatcher scans ovens/slots and picks the first free slot.
+5. It dequeues the next task from the queue and assigns it to that slot.
+6. Task moves from `queued` -> `baking`, and timing fields are set.
+7. When bake time expires, the task is marked `done`, the slot is freed, and the dispatcher runs again.
+
+Queue and ETA notes:
+
+- `waitingQueue` is sorted in the same order tasks will be considered for baking.
+- `estimatedStartAt`/`estimatedEndAt` are projected times based on current slot workloads.
+- Task-level `slotIndex` in internals is zero-based, but kitchen status response shows one-based slot numbers.
+
+Status transitions related to kitchen flow:
+
+- Task: `queued` -> `baking` -> `done` (or `canceled`)
+- Order:
+    - `queued` while all tasks are waiting
+    - `baking` when at least one task is baking
+    - `delivery` when all tasks are done
+    - `canceled` when all related tasks are canceled
+
 #### 3.11 Order Status By Ticket Number
 
 - Method: `GET`
 - Relative path: `/api/orders/ticket/:ticketNumber/status`
 - Test URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/:ticketNumber/status`
-- Purpose: Get current order status by ticket number.
+- Purpose: Return current order status and timing info using the `ticket_number` received at order creation.
 
 Example:
 
@@ -546,17 +644,19 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
+        <img width="1316" height="382" alt="Screenshot 2026-05-26 at 6 32 42 PM" src="https://github.com/user-attachments/assets/e612c50f-6d48-4542-b504-8b00a0e90dcd" />
+
 Response example:
 
 ```json
 {
-  "ticket_number": 1001,
-  "order_id": "ord_1",
-  "status": "queued",
-  "priority_level": 2,
-  "estimated_ready_time": "2026-05-26T03:00:00.000Z",
-  "delivered_at": null,
-  "updated_at": "2026-05-26T02:57:22.000Z"
+    "ticket_number": 1001,
+    "order_id": "ord_1",
+    "status": "baking",
+    "priority_level": 2,
+    "estimated_ready_time": "2026-05-26T03:00:00.000Z",
+    "delivered_at": null,
+    "updated_at": "2026-05-26T02:57:22.000Z"
 }
 ```
 
@@ -579,21 +679,45 @@ Errors:
 
 Copy `.env.example` to `.env` and adjust values as needed.
 
-Required:
+### Runtime variables used by the API
 
-- `MONGODB_URI`: MongoDB connection string. Example: `mongodb://127.0.0.1:27017`
+| Variable                     | Required                   | Default  | Purpose                                                                                       |
+| ---------------------------- | -------------------------- | -------- | --------------------------------------------------------------------------------------------- |
+| `PORT`                       | No                         | `3000`   | HTTP port where Fastify listens.                                                              |
+| `MONGODB_URI`                | Yes                        | None     | MongoDB connection string used by the repository layer.                                       |
+| `MONGODB_DB_NAME`            | No                         | `bakery` | Database name selected after connecting to MongoDB.                                           |
+| `JWT_SECRET`                 | Yes (for protected routes) | Empty    | Secret used to sign and verify JWT tokens in login/auth middleware.                           |
+| `JWT_EXPIRES_IN`             | No                         | `1h`     | Token lifetime passed to `jsonwebtoken` (for example `15m`, `1h`, `2d`).                      |
+| `AUTH_USERNAME`              | Yes (for login)            | Empty    | Username accepted by `POST /api/auth/login`.                                                  |
+| `AUTH_PASSWORD`              | Yes (for login)            | Empty    | Password accepted by `POST /api/auth/login`.                                                  |
+| `OVEN_COUNT`                 | No                         | `2`      | Number of ovens created by the kitchen scheduler.                                             |
+| `SLOTS_PER_OVEN`             | No                         | `3`      | Number of tray slots per oven used for concurrent baking capacity.                            |
+| `SEED_MENU_ON_START`         | No                         | `true`   | If `true`, seeds default menu items when menu is empty at startup.                            |
+| `BAKE_TIME_SCALE_MS_PER_MIN` | No                         | `1000`   | Time scaling for bake simulation. One logical bake minute equals this many real milliseconds. |
+| `BAKE_RECONCILE_INTERVAL_MS` | No                         | `1000`   | Interval for the reconciliation loop that completes overdue baking tasks.                     |
 
-Optional:
+### Compose/deployment variables (EC2 path)
 
-- `MONGODB_DB_NAME`: Database name. Default: `bakery`
-- `PORT`: API port. Default: `3000`
-- `JWT_EXPIRES_IN`: Token expiration (for example `1h`). Default: `1h`
+These are not consumed directly by application code, but they affect Docker Compose behavior in EC2 deployment.
 
-Required for JWT-protected routes:
+| Variable              | Required                    | Default                                                     | Purpose                                                                                                   |
+| --------------------- | --------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `GHCR_IMAGE`          | Yes in EC2 compose workflow | `snack-builder-bakery-api-api:latest` (fallback in compose) | Image tag used by `docker-compose.ec2.yml` for the API service.                                           |
+| `EC2_MONGODB_URI`     | No                          | `mongodb://mongo:27017`                                     | Optional override for API `MONGODB_URI` in `docker-compose.ec2.yml`. Use this for Atlas/external MongoDB. |
+| `EC2_MONGODB_DB_NAME` | No                          | `bakery`                                                    | Optional override for API `MONGODB_DB_NAME` in `docker-compose.ec2.yml`.                                  |
 
-- `JWT_SECRET`: Secret used to sign and verify tokens
-- `AUTH_USERNAME`: Login username for `/api/auth/login`
-- `AUTH_PASSWORD`: Login password for `/api/auth/login`
+### GitHub Secrets related to env injection
+
+For EC2 deployment workflow:
+
+- `ENV_FILE`: full multiline `.env` content written on the EC2 host before compose starts.
+- `EC2_MONGODB_URI` and `EC2_MONGODB_DB_NAME`: optional secrets used to generate compose overrides.
+
+### Quick recommendations
+
+- Use strong random values for `JWT_SECRET` in non-local environments.
+- Keep `AUTH_PASSWORD` and Mongo credentials only in secrets managers or CI secrets.
+- For local testing speed, keep bake scale low (for example `1000`). For more realistic simulation, increase it.
 
 ## Run
 
@@ -637,32 +761,95 @@ This split lets local work use current code quickly while EC2 uses immutable ima
 
 ## Docker Compose (Local)
 
-This repository includes Docker Compose for local setup with:
+Use this section to run the full application locally with containers.
+
+Services started by `docker-compose.yml`:
 
 - API (`api`)
 - MongoDB (`mongo`)
 - Prometheus (`prometheus`)
 - Grafana (`grafana`)
 
-Start everything:
+### Prerequisites
+
+1. Docker Desktop (or Docker Engine + Compose plugin) is installed.
+2. Docker daemon is running.
+3. Create `.env` from `.env.example` and set values for:
+    - `JWT_SECRET`
+    - `AUTH_USERNAME`
+    - `AUTH_PASSWORD`
+
+Quick daemon check:
 
 ```bash
-docker compose up -d --build
+docker info >/dev/null && echo "docker daemon up" || echo "docker daemon down"
 ```
 
-Endpoints:
+### First Run (or after dependency changes)
 
-- API: `http://localhost:3000`
+```bash
+docker compose down -v --remove-orphans
+docker compose up -d --build
+docker compose ps
+```
+
+What this does:
+
+- Recreates containers and network.
+- Rebuilds the API image from current source.
+- Starts all services in detached mode.
+
+### Daily Start (fast path)
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+### Verify Everything Is Healthy
+
+```bash
+curl -fsS http://localhost:3000/api/health
+curl -fsS http://localhost:3000/metrics | head -n 12
+curl -fsS http://localhost:9090/-/healthy
+curl -fsS http://localhost:3001/api/health
+```
+
+Expected endpoints:
+
+- API base: `http://localhost:3000`
 - API health: `http://localhost:3000/api/health`
 - API metrics: `http://localhost:3000/metrics`
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3001` (admin/admin)
+- Prometheus UI: `http://localhost:9090`
+- Grafana UI: `http://localhost:3001` (`admin` / `admin`)
 
-Stop everything:
+### Useful Logs and Debug Commands
+
+```bash
+docker compose logs --tail=200 api
+docker compose logs --tail=200 mongo
+docker compose logs -f api
+```
+
+### Stop and Cleanup
+
+Stop services but keep volumes/data:
 
 ```bash
 docker compose down
 ```
+
+Stop services and remove volumes (full reset):
+
+```bash
+docker compose down -v --remove-orphans
+```
+
+### Local Compose Behavior Notes
+
+- API always binds to host `3000` (`3000:3000`).
+- In local compose, API MongoDB target is `mongodb://mongo:27017` (container network).
+- If Docker is not running, compose commands fail with daemon connection errors.
 
 ## Observability: Prometheus and Grafana
 
