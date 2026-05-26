@@ -148,8 +148,20 @@ jobs:
                       ${{ secrets.ENV_FILE }}
                       EOF
 
+                      if [ -z "${GHCR_IMAGE:-}" ]; then
+                        echo "GHCR_IMAGE is empty. Check workflow env propagation."
+                        exit 1
+                      fi
+
                       echo "GHCR_IMAGE=${GHCR_IMAGE}" > .deploy.env
+                      echo "[INFO] GHCR_IMAGE=${GHCR_IMAGE}"
                       run_step "docker login ghcr.io" $DOCKER login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_TOKEN }}
+
+                      echo "[STEP] docker compose config"
+                      if ! compose --env-file .deploy.env -f docker-compose.ec2.yml config >/dev/null; then
+                        echo "docker compose config failed"
+                        exit 1
+                      fi
 
                       echo "[STEP] docker compose pull"
                       if ! compose --env-file .deploy.env -f docker-compose.ec2.yml pull; then
