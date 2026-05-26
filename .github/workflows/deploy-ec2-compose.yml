@@ -43,8 +43,21 @@ jobs:
                   envs: GHCR_IMAGE
                   script: |
                       set -e
-                      mkdir -p ${{ secrets.EC2_APP_DIR }}
-                      cd ${{ secrets.EC2_APP_DIR }}
+                      APP_DIR="${{ secrets.EC2_APP_DIR }}"
+
+                      if [ ! -d "$APP_DIR" ]; then
+                        mkdir -p "$APP_DIR" 2>/dev/null || {
+                          sudo mkdir -p "$APP_DIR"
+                          sudo chown -R "$USER":"$USER" "$APP_DIR"
+                        }
+                      fi
+
+                      cd "$APP_DIR"
+
+                      DOCKER="docker"
+                      if ! docker info >/dev/null 2>&1; then
+                        DOCKER="sudo docker"
+                      fi
 
                       if [ ! -d .git ]; then
                         git clone https://github.com/${{ github.repository }} .
@@ -59,9 +72,9 @@ jobs:
                       EOF
 
                       echo "GHCR_IMAGE=${GHCR_IMAGE}" > .deploy.env
-                      docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_TOKEN }}
-                      docker compose --env-file .deploy.env -f docker-compose.ec2.yml pull
-                      docker compose --env-file .deploy.env -f docker-compose.ec2.yml up -d --remove-orphans
+                      $DOCKER login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_TOKEN }}
+                      $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml pull
+                      $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml up -d --remove-orphans
 
                       HEALTH_URL="http://localhost:3000/api/health"
                       ATTEMPTS=30
@@ -75,8 +88,8 @@ jobs:
 
                         if [ "$i" -eq "$ATTEMPTS" ]; then
                           echo "Health check failed after $ATTEMPTS attempts"
-                          docker compose --env-file .deploy.env -f docker-compose.ec2.yml ps
-                          docker compose --env-file .deploy.env -f docker-compose.ec2.yml logs --tail=200 api
+                          $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml ps
+                          $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml logs --tail=200 api
                           exit 1
                         fi
 
@@ -84,4 +97,4 @@ jobs:
                         sleep "$SLEEP_SECONDS"
                       done
 
-                      docker image prune -f
+                      $DOCKER image prune -f
