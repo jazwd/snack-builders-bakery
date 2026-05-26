@@ -39,6 +39,54 @@ When an oven slot opens, the system must pick the highest-priority item from the
 - **GitHub** to handle the versioning of the code (including commits, PRs) and to handle the CI and deployment of the app (using **GitHub Actions**).
 - **Docker Compose** for Orchestration (locally and in an **AWS EC2 instance** to test the endpoint in a Production environment).
 
+## Quick Start (Local with Docker Compose)
+
+### Prerequisites
+
+1. Docker Desktop (or Docker Engine + Compose plugin) installed and running.
+2. Create `.env` from `.env.example`.
+3. Set at least these variables in `.env`:
+    - `JWT_SECRET`
+    - `AUTH_USERNAME`
+    - `AUTH_PASSWORD`
+
+### Run the full stack
+
+```bash
+docker compose down -v --remove-orphans
+docker compose up -d --build
+docker compose ps
+```
+
+### Verify services
+
+```bash
+curl -fsS http://localhost:3000/api/health
+curl -fsS http://localhost:3000/metrics | head -n 12
+curl -fsS http://localhost:9090/-/healthy
+curl -fsS http://localhost:3001/api/health
+```
+
+Expected local endpoints:
+
+- API: `http://localhost:3000`
+- API health: `http://localhost:3000/api/health`
+- API metrics: `http://localhost:3000/metrics`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3001` (`admin` / `admin`)
+
+### Stop
+
+```bash
+docker compose down
+```
+
+### Full reset (optional)
+
+```bash
+docker compose down -v --remove-orphans
+```
+
 ## HOW TO USE IT (API endpoints)
 
 Base host used in this guide:
@@ -66,7 +114,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/health`
 - Auth: None
 
-        <img width="1320" height="464" alt="Screenshot 2026-05-26 at 12 36 59 PM" src="https://github.com/user-attachments/assets/fa8e4ad8-3753-4de9-8057-b05e8e8ed152" />
+          <img width="1320" height="464" alt="Screenshot 2026-05-26 at 12 36 59 PM" src="https://github.com/user-attachments/assets/fa8e4ad8-3753-4de9-8057-b05e8e8ed152" />
 
 Successful response example:
 
@@ -435,7 +483,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>`
 - Auth: Bearer Token (`<jwt_token>`)
 
-        <img width="1316" height="753" alt="Screenshot 2026-05-26 at 4 42 24 PM" src="https://github.com/user-attachments/assets/64050be2-2a90-4a7a-a41a-e5fe28795100" />
+          <img width="1316" height="753" alt="Screenshot 2026-05-26 at 4 42 24 PM" src="https://github.com/user-attachments/assets/64050be2-2a90-4a7a-a41a-e5fe28795100" />
 
 Errors:
 
@@ -462,7 +510,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>/tasks`
 - Auth: Bearer Token (`<jwt_token>`)
 
-        <img width="1316" height="858" alt="Screenshot 2026-05-26 at 4 47 04 PM" src="https://github.com/user-attachments/assets/df88146e-855e-4595-924e-ed52993ff569" />
+          <img width="1316" height="858" alt="Screenshot 2026-05-26 at 4 47 04 PM" src="https://github.com/user-attachments/assets/df88146e-855e-4595-924e-ed52993ff569" />
 
 Errors:
 
@@ -541,7 +589,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/kitchen/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
-        <img width="1315" height="856" alt="Screenshot 2026-05-26 at 5 11 22 PM" src="https://github.com/user-attachments/assets/e6c9947f-a951-4c7c-86f2-0d67f9d44070" />
+          <img width="1315" height="856" alt="Screenshot 2026-05-26 at 5 11 22 PM" src="https://github.com/user-attachments/assets/e6c9947f-a951-4c7c-86f2-0d67f9d44070" />
 
 Purpose:
 
@@ -644,7 +692,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
-        <img width="1316" height="382" alt="Screenshot 2026-05-26 at 6 32 42 PM" src="https://github.com/user-attachments/assets/e612c50f-6d48-4542-b504-8b00a0e90dcd" />
+          <img width="1316" height="382" alt="Screenshot 2026-05-26 at 6 32 42 PM" src="https://github.com/user-attachments/assets/e612c50f-6d48-4542-b504-8b00a0e90dcd" />
 
 Response example:
 
@@ -695,7 +743,3 @@ Copy `.env.example` to `.env` and adjust values as needed.
 | `SEED_MENU_ON_START`         | No                         | `true`   | If `true`, seeds default menu items when menu is empty at startup.                            |
 | `BAKE_TIME_SCALE_MS_PER_MIN` | No                         | `1000`   | Time scaling for bake simulation. One logical bake minute equals this many real milliseconds. |
 | `BAKE_RECONCILE_INTERVAL_MS` | No                         | `1000`   | Interval for the reconciliation loop that completes overdue baking tasks.                     |
-
-
-
-
