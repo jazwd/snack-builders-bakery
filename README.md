@@ -43,9 +43,7 @@ Base host used in this guide:
 
 - `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com`
 
-
 ### 1. Endpoints That Do **Not** Require Authentication
-
 
 #### 1.1 Health Check
 
@@ -79,7 +77,6 @@ Successful response example:
 }
 ```
 
-
 #### 1.2 Prometheus Metrics
 
 - Method: `GET`
@@ -102,9 +99,7 @@ Postman example:
 
 <img width="1317" height="823" alt="Screenshot 2026-05-26 at 12 40 48 PM" src="https://github.com/user-attachments/assets/9300a2ef-8a1c-47ac-add5-00c9eaa4749e" />
 
-
 ### 2. Authentication Endpoint
-
 
 #### 2.1 Login (Get JWT Token)
 
@@ -146,7 +141,7 @@ Postman example:
 }
 ```
 
-Tip: save `token` from response and use `Authorization: Bearer <token>` for protected endpoints.
+Tip: save `token` from response and use `Authorization: Bearer <token>` for protected endpoints. The **Token expires** in 1 hour; after this, you have to generate a new one.
 
 <img width="1319" height="466" alt="Screenshot 2026-05-26 at 12 43 39 PM" src="https://github.com/user-attachments/assets/d0b3b3a0-5c30-49fc-8bcf-1b463cda2ec8" />
 
@@ -340,6 +335,7 @@ Request body:
 }
 ```
 **priorityLevel:** 1 = VIP, 2 = App/Delivery, 3 = Walk-in
+**paymentMethod:** The paymentMethod can be "credit_card" or "cash". The integrations, like the payment gateway or the integration with a bank to register a payment, are not part of the scope of this Coding exercise. Anyway, a Service (logic) has been implemented in code for further integration.
 
 Example:
 
@@ -407,6 +403,9 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders`
 - Auth: Bearer Token (`<jwt_token>`)
 - Params (optional): `status=queued`
+**Status:** can be: 'queued' | 'baking' | 'delivery' | 'canceled'
+
+<img width="1316" height="870" alt="Screenshot 2026-05-26 at 4 38 46 PM" src="https://github.com/user-attachments/assets/05e49c35-98c9-4a50-bb7f-7fe492382072" />
 
 Errors:
 
@@ -431,11 +430,15 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>`
 - Auth: Bearer Token (`<jwt_token>`)
 
+  <img width="1316" height="753" alt="Screenshot 2026-05-26 at 4 42 24 PM" src="https://github.com/user-attachments/assets/64050be2-2a90-4a7a-a41a-e5fe28795100" />
+
 Errors:
 
 - `404`: Order not found
 
 #### 3.8 Orders - Get Tasks
+
+Each time an order is created, the corresponding baking "tasks" are created, too. This helps to handle the Kitchen status (ovens and slots).
 
 - Method: `GET`
 - Relative path: `/api/orders/:orderId/tasks`
@@ -454,11 +457,16 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>/tasks`
 - Auth: Bearer Token (`<jwt_token>`)
 
+  <img width="1316" height="858" alt="Screenshot 2026-05-26 at 4 47 04 PM" src="https://github.com/user-attachments/assets/df88146e-855e-4595-924e-ed52993ff569" />
+
 Errors:
 
 - `404`: Order not found
 
 #### 3.9 Orders - Update Status
+
+This endpoint only updates the "status" field, and more specifically, to cancel an order.
+An order can only be canceled if all its baking "tasks" are in "queued" status. If one of its tasks is in "baking" status, the order can't be canceled. 
 
 - Method: `PATCH`
 - Relative path: `/api/orders/:orderId`
@@ -495,6 +503,9 @@ Postman example:
 }
 ```
 
+<img width="1316" height="805" alt="Screenshot 2026-05-26 at 5 09 05 PM" src="https://github.com/user-attachments/assets/1c83ceed-f2f5-4268-b68d-182a879f5fff" />
+
+
 Allowed status values:
 
 - `queued`
@@ -526,31 +537,129 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/kitchen/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
-#### 3.11 WebSocket Order Tracking
+  <img width="1315" height="856" alt="Screenshot 2026-05-26 at 5 11 22 PM" src="https://github.com/user-attachments/assets/e6c9947f-a951-4c7c-86f2-0d67f9d44070" />
 
-- Method: `GET` (WebSocket upgrade)
-- Relative path: `/api/ws/orders/:orderId`
-- Test URL: `ws://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/ws/orders/:orderId`
-- Auth: Bearer token required in handshake headers.
+Purpose:
 
-Connection behavior:
+- Returns current oven occupancy plus the queued tasks waiting to be baked.
+- Useful for kitchen dashboards, operational monitoring, and ETA expectations.
 
-- On connect, server sends:
-    - `type: "order_status_snapshot"`
-- On updates, server pushes:
-    - `type: "order_status_changed"`
-- If order does not exist, socket sends error and closes.
+Response shape:
+
+- `ovens`: list of ovens.
+- `ovens[].slots`: each slot in that oven.
+- `ovens[].slots[].slotIndex`: 1-based slot number shown to clients.
+- `ovens[].slots[].task`: `null` when free, otherwise active baking task data.
+- `waitingQueue`: queued tasks not yet assigned to an oven slot.  
+
+Response example:
+
+```json
+{
+    "ovens": [
+        {
+            "ovenId": 1,
+            "slots": [
+                {
+                    "slotIndex": 1,
+                    "task": {
+                        "taskId": "tsk_10",
+                        "orderId": "ord_7",
+                        "item": "Butter Croissant",
+                        "category": "pastries",
+                        "priorityLevel": 1,
+                        "bakingStartedAt": "2026-05-26T15:10:00.000Z",
+                        "expectedDoneAt": "2026-05-26T15:20:00.000Z"
+                    }
+                },
+                {
+                    "slotIndex": 2,
+                    "task": null
+                }
+            ]
+        }
+    ],
+    "waitingQueue": [
+        {
+            "taskId": "tsk_11",
+            "orderId": "ord_8",
+            "item": "Classic Chocolate Cookie",
+            "category": "cookies",
+            "priorityLevel": 2,
+            "estimatedStartAt": "2026-05-26T15:20:00.000Z",
+            "estimatedEndAt": "2026-05-26T15:25:00.000Z"
+        }
+    ]
+}
+```
+
+How oven/slot assignment works:
+
+1. Each order item quantity is expanded into individual tasks.
+2. New tasks are pushed into a priority queue.
+3. Queue ordering is:
+    - lower `priorityLevel` first (`1` before `2` before `3`)
+    - if same priority, first created task first (FIFO by sequence)
+4. The dispatcher scans ovens/slots and picks the first free slot.
+5. It dequeues the next task from the queue and assigns it to that slot.
+6. Task moves from `queued` -> `baking`, and timing fields are set.
+7. When bake time expires, the task is marked `done`, the slot is freed, and the dispatcher runs again.
+
+Queue and ETA notes:
+
+- `waitingQueue` is sorted in the same order tasks will be considered for baking.
+- `estimatedStartAt`/`estimatedEndAt` are projected times based on current slot workloads.
+- Task-level `slotIndex` in internals is zero-based, but kitchen status response shows one-based slot numbers.
+
+Status transitions related to kitchen flow:
+
+- Task: `queued` -> `baking` -> `done` (or `canceled`)
+- Order:
+    - `queued` while all tasks are waiting
+    - `baking` when at least one task is baking
+    - `delivery` when all tasks are done
+    - `canceled` when all related tasks are canceled
+
+#### 3.11 Order Status By Ticket Number
+
+- Method: `GET`
+- Relative path: `/api/orders/ticket/:ticketNumber/status`
+- Test URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/:ticketNumber/status`
+- Purpose: Return current order status and timing info using the `ticket_number` received at order creation.
+
+Example:
+
+```bash
+curl -X GET "http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status" \
+  -H "Authorization: Bearer <jwt_token>"
+```
 
 Postman example:
 
-- Request type: `WebSocket`
-- URL: `ws://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/ws/orders/<order_id>`
-- Headers: `Authorization: Bearer <jwt_token>`
+- Method: `GET`
+- URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status`
+- Auth: Bearer Token (`<jwt_token>`)
 
-Expected messages:
+  <img width="1316" height="382" alt="Screenshot 2026-05-26 at 6 32 42 PM" src="https://github.com/user-attachments/assets/e612c50f-6d48-4542-b504-8b00a0e90dcd" />
 
-- `order_status_snapshot` on connect
-- `order_status_changed` when status updates
+Response example:
+
+```json
+{
+    "ticket_number": 1001,
+    "order_id": "ord_1",
+    "status": "baking",
+    "priority_level": 2,
+    "estimated_ready_time": "2026-05-26T03:00:00.000Z",
+    "delivered_at": null,
+    "updated_at": "2026-05-26T02:57:22.000Z"
+}
+```
+
+Errors:
+
+- `400`: `ticketNumber` must be a positive integer
+- `404`: Order not found
 
 ### 4. Common Auth Errors for Protected Endpoints
 
