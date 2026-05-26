@@ -5,6 +5,7 @@ import websocketPlugin from '@fastify/websocket';
 
 import { login } from './src/controllers/auth.controller';
 import { getHealth } from './src/controllers/health.controller';
+import { getMetrics } from './src/controllers/metrics.controller';
 import {
   createMenuItem,
   deleteMenuItem,
@@ -30,6 +31,7 @@ const API_PREFIX = '/api';
 void app.register(websocketPlugin);
 
 app.get(`${API_PREFIX}/health`, getHealth);
+app.get('/metrics', getMetrics);
 app.post(`${API_PREFIX}/auth/login`, login);
 
 app.get(`${API_PREFIX}/menu`, { preHandler: authenticateRequest }, getMenu);

@@ -31,3 +31,6 @@ build/
 .cache/
 tmp/
 temp/
+
+# SSH pem file
+snack_builder_bakery.pem
