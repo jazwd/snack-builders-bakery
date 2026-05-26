@@ -59,6 +59,23 @@ jobs:
                         DOCKER="sudo docker"
                       fi
 
+                      if ! command -v git >/dev/null 2>&1; then
+                        echo "git not found, installing..."
+                        if command -v apt-get >/dev/null 2>&1; then
+                          sudo apt-get update -y
+                          sudo apt-get install -y git
+                        elif command -v dnf >/dev/null 2>&1; then
+                          sudo dnf install -y git
+                        elif command -v yum >/dev/null 2>&1; then
+                          sudo yum install -y git
+                        elif command -v apk >/dev/null 2>&1; then
+                          sudo apk add --no-cache git
+                        else
+                          echo "Unable to install git automatically. Install git on the EC2 host and retry."
+                          exit 1
+                        fi
+                      fi
+
                       if [ ! -d .git ]; then
                         git clone https://github.com/${{ github.repository }} .
                       fi
