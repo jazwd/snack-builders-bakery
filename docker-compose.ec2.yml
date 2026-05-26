@@ -9,8 +9,8 @@ services:
         env_file:
             - .env
         environment:
-            MONGODB_URI: mongodb://mongo:27017
-            MONGODB_DB_NAME: bakery
+            MONGODB_URI: ${EC2_MONGODB_URI:-mongodb://mongo:27017}
+            MONGODB_DB_NAME: ${EC2_MONGODB_DB_NAME:-bakery}
         healthcheck:
             test:
                 [

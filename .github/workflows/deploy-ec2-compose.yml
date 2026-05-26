@@ -153,7 +153,11 @@ jobs:
                         exit 1
                       fi
 
-                      echo "GHCR_IMAGE=${GHCR_IMAGE}" > .deploy.env
+                      {
+                        echo "GHCR_IMAGE=${GHCR_IMAGE}"
+                        echo "EC2_MONGODB_URI=${{ secrets.EC2_MONGODB_URI }}"
+                        echo "EC2_MONGODB_DB_NAME=${{ secrets.EC2_MONGODB_DB_NAME }}"
+                      } > .deploy.env
                       echo "[INFO] GHCR_IMAGE=${GHCR_IMAGE}"
                       run_step "docker login ghcr.io" $DOCKER login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_TOKEN }}
 
