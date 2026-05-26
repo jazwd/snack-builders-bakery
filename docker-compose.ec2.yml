@@ -2,10 +2,10 @@ version: '3.9'
 
 services:
     api:
-        image: ${GHCR_IMAGE:?GHCR_IMAGE is required}
+        image: ${GHCR_IMAGE:-snack-builder-bakery-api-api:latest}
         container_name: bakery-api
         ports:
-            - '3000:3000'
+            - '80:80'
         env_file:
             - .env
         environment:
