@@ -277,9 +277,13 @@ Postman example:
 ```json
 {
     "price": 3.2,
-    "active": true
+    "active": false
 }
 ```
+
+**Note:** If a menu item has the "active" field **false**, it can't be selected or added to an order. By default is created with a value of **true**.
+
+<img width="1320" height="555" alt="Screenshot 2026-05-26 at 12 58 39 PM" src="https://github.com/user-attachments/assets/ef02d404-3c48-412b-9f45-b0fbef5e888a" />
 
 Errors:
 
@@ -305,6 +309,8 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/menu/<menu_id>`
 - Auth: Bearer Token (`<jwt_token>`)
 
+<img width="1320" height="345" alt="Screenshot 2026-05-26 at 1 01 05 PM" src="https://github.com/user-attachments/assets/b0ead07f-0458-41e9-be0c-4511db8cb3fc" />
+
 Success:
 
 - `204 No Content`
@@ -322,15 +328,10 @@ Errors:
 Request body:
 
 ```json
-{
-    "items": [
-        { "menuItemId": "menu_1", "quantity": 2 },
-        { "menuItemId": "menu_2", "quantity": 1 }
-    ],
-    "paymentMethod": "cash",
-    "priorityLevel": 2
-}
+<img width="1318" height="567" alt="Screenshot 2026-05-26 at 1 11 05 PM" src="https://github.com/user-attachments/assets/eab7a69b-aef2-4b7d-bc2b-d8e95a91410f" /><img width="1317" height="557" alt="Screenshot 2026-05-26 at 1 11 25 PM" src="https://github.com/user-attachments/assets/ad9e891e-15ab-4fda-b8e3-89bb315ff1cd" />
+
 ```
+**priorityLevel:** 1 = VIP, 2 = App/Delivery, 3 = Walk-in
 
 Example:
 
@@ -356,6 +357,8 @@ Postman example:
     "priorityLevel": 2
 }
 ```
+
+
 
 Success response example:
 
