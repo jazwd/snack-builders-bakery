@@ -1,7 +1,6 @@
 import 'dotenv/config';
 
 import Fastify from 'fastify';
-import websocketPlugin from '@fastify/websocket';
 
 import { login } from './src/controllers/auth.controller';
 import { getHealth } from './src/controllers/health.controller';
@@ -16,19 +15,17 @@ import { getKitchenStatus } from './src/controllers/kitchen.controller';
 import {
   createOrder,
   getOrderById,
+  getOrderStatusByTicketNumber,
   getOrderTasks,
   getOrders,
   updateOrder,
 } from './src/controllers/orders.controller';
-import { subscribeOrderStatus } from './src/controllers/order-ws.controller';
 import { initializeAppState } from './src/app/app-state';
 import { getEnvConfig } from './src/config/config.service';
 import { authenticateRequest } from './src/middleware/auth.middleware';
 
 const app = Fastify({ logger: true });
 const API_PREFIX = '/api';
-
-void app.register(websocketPlugin);
 
 app.get(`${API_PREFIX}/health`, getHealth);
 app.get('/metrics', getMetrics);
@@ -58,6 +55,11 @@ app.post(
 );
 app.get(`${API_PREFIX}/orders`, { preHandler: authenticateRequest }, getOrders);
 app.get(
+  `${API_PREFIX}/orders/ticket/:ticketNumber/status`,
+  { preHandler: authenticateRequest },
+  getOrderStatusByTicketNumber,
+);
+app.get(
   `${API_PREFIX}/orders/:orderId`,
   { preHandler: authenticateRequest },
   getOrderById,
@@ -77,12 +79,6 @@ app.get(
   `${API_PREFIX}/kitchen/status`,
   { preHandler: authenticateRequest },
   getKitchenStatus,
-);
-
-app.get(
-  `${API_PREFIX}/ws/orders/:orderId`,
-  { websocket: true, preHandler: authenticateRequest },
-  subscribeOrderStatus,
 );
 
 async function startServer(): Promise<void> {

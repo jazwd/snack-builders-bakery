@@ -5,6 +5,7 @@ High-performance backend API for Snack Builders Bakery to handle order managemen
 Our kitchen has 2 Ovens, each fitting 3 trays (Total capacity: 6 concurrent slots). The core challenge is managing a prioritized queue where VIP orders can affect the scheduling and estimations of all other active orders (**This can be handled by environment variables, the number of ovens, and their slots**).
 
 ### Core Requirements:
+
 - Menu Management: Users must be able to see our menu, and store managers should be able to add, remove, or update the items that we offer.
 - Order Placement: Customers need to be able to request one or multiple items. When an order is placed, the system must return a ticket to the customer with the price they need to pay. The customer should also have the ability to track the status of their order.
 - Payment Management: We need to be able to handle payments from the clients, accepting both cash and credit cards.
@@ -20,6 +21,7 @@ Our kitchen has 2 Ovens, each fitting 3 trays (Total capacity: 6 concurrent slot
     - Tier 3 (Walk-in): Standard priority.
 
 When an oven slot opens, the system must pick the highest-priority item from the queue first, subject to the following constraints:
+
 - You cannot remove a lower-priority item from the oven once it has started baking.
 - If a VIP order is placed, the estimated_ready_time for all lower-priority orders in the queue must be updated dynamically to reflect their new delayed position.
 
@@ -33,9 +35,9 @@ When an oven slot opens, the system must pick the highest-priority item from the
 - **Prometheus** client for Node.js, for handling metrics/monitoring.
 - **Grafana** to expose/show metrics and system performance.
 - **ESLint** as a spell-checker and code quality inspector in development and build (part of the Continuous integration workflow).
-- **Unit Tests** through the *Vitest* testing framework. It can be executed manually in development and is also part of the Continuous integration workflow.
+- **Unit Tests** through the _Vitest_ testing framework. It can be executed manually in development and is also part of the Continuous integration workflow.
 - **GitHub** to handle the versioning of the code (including commits, PRs) and to handle the CI and deployment of the app (using **GitHub Actions**).
-- **Docker Compose** for Orchestration (locally and in an **AWS EC2 instance** to test the endpoint in a Production environment).          
+- **Docker Compose** for Orchestration (locally and in an **AWS EC2 instance** to test the endpoint in a Production environment).
 
 ## HOW TO USE IT (API endpoints)
 
@@ -64,7 +66,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/health`
 - Auth: None
 
-  <img width="1320" height="464" alt="Screenshot 2026-05-26 at 12 36 59 PM" src="https://github.com/user-attachments/assets/fa8e4ad8-3753-4de9-8057-b05e8e8ed152" />
+    <img width="1320" height="464" alt="Screenshot 2026-05-26 at 12 36 59 PM" src="https://github.com/user-attachments/assets/fa8e4ad8-3753-4de9-8057-b05e8e8ed152" />
 
 Successful response example:
 
@@ -116,8 +118,9 @@ Request body:
     "password": "your_auth_password"
 }
 ```
+
 **Note:** If you will test the app locally, please set the corresponding username and password in the .env file variables: AUTH_USERNAME and AUTH_PASSWORD.
-          If you want to use the Test URL in the AWS EC2 instance, please contact me at [jose.zamora.78@gmail.com](mailto:jose.zamora.78@gmail.com) to provide you with the credentials.  
+If you want to use the Test URL in the AWS EC2 instance, please contact me at [jose.zamora.78@gmail.com](mailto:jose.zamora.78@gmail.com) to provide you with the credentials.
 
 Example:
 
@@ -231,6 +234,7 @@ Postman example:
     "price": 2.5
 }
 ```
+
 <img width="1315" height="551" alt="Screenshot 2026-05-26 at 12 50 31 PM" src="https://github.com/user-attachments/assets/a2867d56-49a0-4a08-a81a-0431736c0cdb" />
 
 Errors:
@@ -334,6 +338,7 @@ Request body:
     "priorityLevel": 2
 }
 ```
+
 **priorityLevel:** 1 = VIP, 2 = App/Delivery, 3 = Walk-in
 **paymentMethod:** The paymentMethod can be "credit_card" or "cash". The integrations, like the payment gateway or the integration with a bank to register a payment, are not part of the scope of this Coding exercise. Anyway, a Service (logic) has been implemented in code for further integration.
 
@@ -373,11 +378,11 @@ Success response example:
     "total_price": 5,
     "estimated_ready_time": "2026-05-26T03:00:00.000Z",
     "status": "queued",
-    "websocket_tracking_url": "/api/ws/orders/ord_1"
+    "status_tracking_url": "/api/orders/ticket/1001/status"
 }
 ```
 
-**Note:** As was requested, a Ticker number is generated, and an "Estimated Ready Time" is returned as part of the response. Also, a WebSocket URL is returned to track the order in real time.
+**Note:** As requested, a Ticket number is generated and an "Estimated Ready Time" is returned. Use `status_tracking_url` to poll order status.
 
 Errors:
 
@@ -403,7 +408,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders`
 - Auth: Bearer Token (`<jwt_token>`)
 - Params (optional): `status=queued`
-**Status:** can be: 'queued' | 'baking' | 'delivery' | 'canceled'
+  **Status:** can be: 'queued' | 'baking' | 'delivery' | 'canceled'
 
 <img width="1316" height="870" alt="Screenshot 2026-05-26 at 4 38 46 PM" src="https://github.com/user-attachments/assets/05e49c35-98c9-4a50-bb7f-7fe492382072" />
 
@@ -430,7 +435,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>`
 - Auth: Bearer Token (`<jwt_token>`)
 
-  <img width="1316" height="753" alt="Screenshot 2026-05-26 at 4 42 24 PM" src="https://github.com/user-attachments/assets/64050be2-2a90-4a7a-a41a-e5fe28795100" />
+    <img width="1316" height="753" alt="Screenshot 2026-05-26 at 4 42 24 PM" src="https://github.com/user-attachments/assets/64050be2-2a90-4a7a-a41a-e5fe28795100" />
 
 Errors:
 
@@ -457,7 +462,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/<order_id>/tasks`
 - Auth: Bearer Token (`<jwt_token>`)
 
-  <img width="1316" height="858" alt="Screenshot 2026-05-26 at 4 47 04 PM" src="https://github.com/user-attachments/assets/df88146e-855e-4595-924e-ed52993ff569" />
+    <img width="1316" height="858" alt="Screenshot 2026-05-26 at 4 47 04 PM" src="https://github.com/user-attachments/assets/df88146e-855e-4595-924e-ed52993ff569" />
 
 Errors:
 
@@ -466,7 +471,7 @@ Errors:
 #### 3.9 Orders - Update Status
 
 This endpoint only updates the "status" field, and more specifically, to cancel an order.
-An order can only be canceled if all its baking "tasks" are in "queued" status. If one of its tasks is in "baking" status, the order can't be canceled. 
+An order can only be canceled if all its baking "tasks" are in "queued" status. If one of its tasks is in "baking" status, the order can't be canceled.
 
 - Method: `PATCH`
 - Relative path: `/api/orders/:orderId`
@@ -505,7 +510,6 @@ Postman example:
 
 <img width="1316" height="805" alt="Screenshot 2026-05-26 at 5 09 05 PM" src="https://github.com/user-attachments/assets/1c83ceed-f2f5-4268-b68d-182a879f5fff" />
 
-
 Allowed status values:
 
 - `queued`
@@ -537,7 +541,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/kitchen/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
-  <img width="1315" height="856" alt="Screenshot 2026-05-26 at 5 11 22 PM" src="https://github.com/user-attachments/assets/e6c9947f-a951-4c7c-86f2-0d67f9d44070" />
+    <img width="1315" height="856" alt="Screenshot 2026-05-26 at 5 11 22 PM" src="https://github.com/user-attachments/assets/e6c9947f-a951-4c7c-86f2-0d67f9d44070" />
 
 Purpose:
 
@@ -550,7 +554,7 @@ Response shape:
 - `ovens[].slots`: each slot in that oven.
 - `ovens[].slots[].slotIndex`: 1-based slot number shown to clients.
 - `ovens[].slots[].task`: `null` when free, otherwise active baking task data.
-- `waitingQueue`: queued tasks not yet assigned to an oven slot.  
+- `waitingQueue`: queued tasks not yet assigned to an oven slot.
 
 Response example:
 
@@ -640,7 +644,7 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
-  <img width="1316" height="382" alt="Screenshot 2026-05-26 at 6 32 42 PM" src="https://github.com/user-attachments/assets/e612c50f-6d48-4542-b504-8b00a0e90dcd" />
+    <img width="1316" height="382" alt="Screenshot 2026-05-26 at 6 32 42 PM" src="https://github.com/user-attachments/assets/e612c50f-6d48-4542-b504-8b00a0e90dcd" />
 
 Response example:
 
