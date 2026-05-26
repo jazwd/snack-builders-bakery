@@ -43,6 +43,12 @@ jobs:
                   envs: GHCR_IMAGE
                   script: |
                       set -e
+
+                      run_step() {
+                        echo "[STEP] $1"
+                        shift
+                        "$@"
+                      }
                       APP_DIR="${{ secrets.EC2_APP_DIR }}"
 
                       if [ ! -d "$APP_DIR" ]; then
@@ -58,6 +64,8 @@ jobs:
                       if ! docker info >/dev/null 2>&1; then
                         DOCKER="sudo docker"
                       fi
+
+                      echo "Using DOCKER command: $DOCKER"
 
                       if ! command -v git >/dev/null 2>&1; then
                         echo "git not found, installing..."
@@ -76,6 +84,37 @@ jobs:
                         fi
                       fi
 
+                      if ! command -v docker >/dev/null 2>&1; then
+                        echo "docker not found, installing..."
+                        if command -v apt-get >/dev/null 2>&1; then
+                          sudo apt-get update -y
+                          sudo apt-get install -y docker.io docker-compose-plugin
+                        elif command -v dnf >/dev/null 2>&1; then
+                          sudo dnf install -y docker docker-compose-plugin
+                        elif command -v yum >/dev/null 2>&1; then
+                          sudo yum install -y docker docker-compose-plugin
+                        else
+                          echo "Unable to install docker automatically. Install docker on the EC2 host and retry."
+                          exit 1
+                        fi
+                        sudo systemctl enable --now docker || true
+                      fi
+
+                      if ! $DOCKER info >/dev/null 2>&1; then
+                        echo "Docker daemon unavailable."
+                        sudo systemctl status docker --no-pager || true
+                        sudo journalctl -u docker --no-pager -n 100 || true
+                        exit 1
+                      fi
+
+                      if ! $DOCKER compose version >/dev/null 2>&1; then
+                        echo "docker compose plugin unavailable."
+                        exit 1
+                      fi
+
+                      run_step "docker version" $DOCKER version
+                      run_step "docker compose version" $DOCKER compose version
+
                       if [ ! -d .git ]; then
                         git clone https://github.com/${{ github.repository }} .
                       fi
@@ -89,9 +128,25 @@ jobs:
                       EOF
 
                       echo "GHCR_IMAGE=${GHCR_IMAGE}" > .deploy.env
-                      $DOCKER login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_TOKEN }}
-                      $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml pull
-                      $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml up -d --remove-orphans
+                      run_step "docker login ghcr.io" $DOCKER login ghcr.io -u ${{ secrets.GHCR_USERNAME }} -p ${{ secrets.GHCR_TOKEN }}
+
+                      echo "[STEP] docker compose pull"
+                      if ! $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml pull; then
+                        echo "docker compose pull failed"
+                        $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml ps || true
+                        $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml logs --tail=200 || true
+                        sudo journalctl -u docker --no-pager -n 100 || true
+                        exit 1
+                      fi
+
+                      echo "[STEP] docker compose up"
+                      if ! $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml up -d --remove-orphans; then
+                        echo "docker compose up failed"
+                        $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml ps || true
+                        $DOCKER compose --env-file .deploy.env -f docker-compose.ec2.yml logs --tail=200 || true
+                        sudo journalctl -u docker --no-pager -n 100 || true
+                        exit 1
+                      fi
 
                       HEALTH_URL="http://localhost:3000/api/health"
                       ATTEMPTS=30
