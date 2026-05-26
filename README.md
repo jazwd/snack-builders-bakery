@@ -55,6 +55,11 @@ Why there are two Compose files:
 - `docker-compose.yml`: local development and testing. It builds the API image from your local source (`build:`).
 - `docker-compose.ec2.yml`: EC2 deployment. It pulls a prebuilt image from GHCR (`image: ${GHCR_IMAGE}`).
 
+Port behavior differs by file:
+
+- Local (`docker-compose.yml`): host `3000` -> container `3000`
+- EC2 (`docker-compose.ec2.yml`): host `80` -> container `3000`
+
 This split lets local work use current code quickly while EC2 uses immutable images from CI/CD.
 
 ## Docker Compose (Local)
