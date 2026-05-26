@@ -377,11 +377,11 @@ Success response example:
     "total_price": 5,
     "estimated_ready_time": "2026-05-26T03:00:00.000Z",
     "status": "queued",
-    "websocket_tracking_url": "/api/ws/orders/ord_1"
+  "status_tracking_url": "/api/orders/ticket/1001/status"
 }
 ```
 
-**Note:** As was requested, a Ticker number is generated, and an "Estimated Ready Time" is returned as part of the response. Also, a WebSocket URL is returned to track the order in real time.
+**Note:** As requested, a Ticket number is generated and an "Estimated Ready Time" is returned. Use `status_tracking_url` to poll order status.
 
 Errors:
 
@@ -526,31 +526,44 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/kitchen/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
-#### 3.11 WebSocket Order Tracking
+#### 3.11 Order Status By Ticket Number
 
-- Method: `GET` (WebSocket upgrade)
-- Relative path: `/api/ws/orders/:orderId`
-- Test URL: `ws://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/ws/orders/:orderId`
-- Auth: Bearer token required in handshake headers.
+- Method: `GET`
+- Relative path: `/api/orders/ticket/:ticketNumber/status`
+- Test URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/:ticketNumber/status`
+- Purpose: Get current order status by ticket number.
 
-Connection behavior:
+Example:
 
-- On connect, server sends:
-    - `type: "order_status_snapshot"`
-- On updates, server pushes:
-    - `type: "order_status_changed"`
-- If order does not exist, socket sends error and closes.
+```bash
+curl -X GET "http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status" \
+  -H "Authorization: Bearer <jwt_token>"
+```
 
 Postman example:
 
-- Request type: `WebSocket`
-- URL: `ws://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/ws/orders/<order_id>`
-- Headers: `Authorization: Bearer <jwt_token>`
+- Method: `GET`
+- URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status`
+- Auth: Bearer Token (`<jwt_token>`)
 
-Expected messages:
+Response example:
 
-- `order_status_snapshot` on connect
-- `order_status_changed` when status updates
+```json
+{
+  "ticket_number": 1001,
+  "order_id": "ord_1",
+  "status": "queued",
+  "priority_level": 2,
+  "estimated_ready_time": "2026-05-26T03:00:00.000Z",
+  "delivered_at": null,
+  "updated_at": "2026-05-26T02:57:22.000Z"
+}
+```
+
+Errors:
+
+- `400`: `ticketNumber` must be a positive integer
+- `404`: Order not found
 
 ### 4. Common Auth Errors for Protected Endpoints
 

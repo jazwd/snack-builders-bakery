@@ -368,6 +368,12 @@ export class KitchenScheduler {
     return this.orders.get(orderId);
   }
 
+  getOrderByTicketNumber(ticketNumber: number): Order | undefined {
+    return [...this.orders.values()].find(
+      (order) => order.ticketNumber === ticketNumber,
+    );
+  }
+
   listOrderTasks(orderId: string): Task[] {
     return [...this.tasks.values()]
       .filter((task) => task.orderId === orderId)

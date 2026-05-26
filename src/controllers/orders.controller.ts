@@ -65,11 +65,42 @@ export async function createOrder(
       total_price: round2(order.totalPrice),
       estimated_ready_time: new Date(order.estimatedReadyAt).toISOString(),
       status: order.status,
-      websocket_tracking_url: `/api/ws/orders/${order.id}`,
+      status_tracking_url: `/api/orders/ticket/${order.ticketNumber}/status`,
     });
   } catch (error) {
     return reply.code(400).send({ error: (error as Error).message });
   }
+}
+
+export async function getOrderStatusByTicketNumber(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<FastifyReply> {
+  const params = request.params as { ticketNumber: string };
+  const ticketNumber = Number(params.ticketNumber);
+
+  if (!Number.isInteger(ticketNumber) || ticketNumber < 1) {
+    return reply
+      .code(400)
+      .send({ error: 'ticketNumber must be a positive integer.' });
+  }
+
+  const order = scheduler.getOrderByTicketNumber(ticketNumber);
+  if (!order) {
+    return reply.code(404).send({ error: 'Order not found.' });
+  }
+
+  return reply.send({
+    ticket_number: order.ticketNumber,
+    order_id: order.id,
+    status: order.status,
+    priority_level: order.priorityLevel,
+    estimated_ready_time: new Date(order.estimatedReadyAt).toISOString(),
+    delivered_at: order.deliveredAt
+      ? new Date(order.deliveredAt).toISOString()
+      : null,
+    updated_at: new Date(order.updatedAt).toISOString(),
+  });
 }
 
 export async function getOrderById(

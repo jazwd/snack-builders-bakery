@@ -331,7 +331,7 @@ Success response example:
     "total_price": 5,
     "estimated_ready_time": "2026-05-26T03:00:00.000Z",
     "status": "queued",
-    "websocket_tracking_url": "/api/ws/orders/ord_1"
+    "status_tracking_url": "/api/orders/ticket/1001/status"
 }
 ```
 
@@ -488,33 +488,127 @@ Postman example:
 - URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/kitchen/status`
 - Auth: Bearer Token (`<jwt_token>`)
 
+Purpose:
+
+- Returns current oven occupancy plus the queued tasks waiting to be baked.
+- Useful for kitchen dashboards, operational monitoring, and ETA expectations.
+
+Response shape:
+
+- `ovens`: list of ovens.
+- `ovens[].slots`: each slot in that oven.
+- `ovens[].slots[].slotIndex`: 1-based slot number shown to clients.
+- `ovens[].slots[].task`: `null` when free, otherwise active baking task data.
+- `waitingQueue`: queued tasks not yet assigned to an oven slot.
+
+Response example:
+
+```json
+{
+    "ovens": [
+        {
+            "ovenId": 1,
+            "slots": [
+                {
+                    "slotIndex": 1,
+                    "task": {
+                        "taskId": "tsk_10",
+                        "orderId": "ord_7",
+                        "item": "Butter Croissant",
+                        "category": "pastries",
+                        "priorityLevel": 1,
+                        "bakingStartedAt": "2026-05-26T15:10:00.000Z",
+                        "expectedDoneAt": "2026-05-26T15:20:00.000Z"
+                    }
+                },
+                {
+                    "slotIndex": 2,
+                    "task": null
+                }
+            ]
+        }
+    ],
+    "waitingQueue": [
+        {
+            "taskId": "tsk_11",
+            "orderId": "ord_8",
+            "item": "Classic Chocolate Cookie",
+            "category": "cookies",
+            "priorityLevel": 2,
+            "estimatedStartAt": "2026-05-26T15:20:00.000Z",
+            "estimatedEndAt": "2026-05-26T15:25:00.000Z"
+        }
+    ]
+}
+```
+
+How oven/slot assignment works:
+
+1. Each order item quantity is expanded into individual tasks.
+2. New tasks are pushed into a priority queue.
+3. Queue ordering is:
+    - lower `priorityLevel` first (`1` before `2` before `3`)
+    - if same priority, first created task first (FIFO by sequence)
+4. The dispatcher scans ovens/slots and picks the first free slot.
+5. It dequeues the next task from the queue and assigns it to that slot.
+6. Task moves from `queued` -> `baking`, and timing fields are set.
+7. When bake time expires, task is marked `done`, slot is freed, and dispatcher runs again.
+
+Queue and ETA notes:
+
+- `waitingQueue` is sorted in the same order tasks will be considered for baking.
+- `estimatedStartAt`/`estimatedEndAt` are projected times based on current slot workloads.
+- Task-level `slotIndex` in internals is zero-based, but kitchen status response shows one-based slot numbers.
+
+Status transitions related to kitchen flow:
+
+- Task: `queued` -> `baking` -> `done` (or `canceled`)
+- Order:
+    - `queued` while all tasks are waiting
+    - `baking` when at least one task is baking
+    - `delivery` when all tasks are done
+    - `canceled` when all related tasks are canceled
+
 ---
 
-### 3.11 WebSocket Order Tracking
+### 3.11 Order Status By Ticket Number
 
-- Method: `GET` (WebSocket upgrade)
-- Relative path: `/api/ws/orders/:orderId`
-- Test URL: `ws://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/ws/orders/:orderId`
-- Auth: Bearer token required in handshake headers.
+- Method: `GET`
+- Relative path: `/api/orders/ticket/:ticketNumber/status`
+- Test URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/:ticketNumber/status`
+- Purpose: Return current order status and timing info using the `ticket_number` received at order creation.
 
-Connection behavior:
+Example:
 
-- On connect, server sends:
-    - `type: "order_status_snapshot"`
-- On updates, server pushes:
-    - `type: "order_status_changed"`
-- If order does not exist, socket sends error and closes.
+```bash
+curl -X GET "http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status" \
+  -H "Authorization: Bearer <jwt_token>"
+```
 
 Postman example:
 
-- Request type: `WebSocket`
-- URL: `ws://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/ws/orders/<order_id>`
-- Headers: `Authorization: Bearer <jwt_token>`
+- Method: `GET`
+- URL: `http://ec2-18-217-126-148.us-east-2.compute.amazonaws.com/api/orders/ticket/<ticket_number>/status`
+- Auth: Bearer Token (`<jwt_token>`)
 
-Expected messages:
+Response example:
 
-- `order_status_snapshot` on connect
-- `order_status_changed` when status updates
+```json
+{
+    "ticket_number": 1001,
+    "order_id": "ord_1",
+    "status": "baking",
+    "priority_level": 2,
+    "estimated_ready_time": "2026-05-26T03:00:00.000Z",
+    "delivered_at": null,
+    "updated_at": "2026-05-26T02:57:22.000Z"
+}
+```
+
+Errors:
+
+- `400`: `ticketNumber` must be a positive integer
+- `404`: Order not found
 
 ---
 
@@ -614,19 +708,19 @@ Screenshot placeholders:
 ![Postman Patch Order Body](docs/images/postman/patch-order-body.png)
 ```
 
-### 5.6 WebSocket Setup
+### 5.6 Ticket Status Setup
 
 Show:
 
-- WebSocket URL
-- Headers with Authorization Bearer token
-- Initial `order_status_snapshot` message
+- Ticket-status URL with a ticket number
+- Bearer token authorization
+- Status transition checks (`queued` -> `baking` -> `delivery`)
 
 Screenshot placeholders:
 
 ```md
-![Postman WebSocket Connect](docs/images/postman/ws-connect.png)
-![Postman WebSocket Messages](docs/images/postman/ws-messages.png)
+![Postman Ticket Status Request](docs/images/postman/ticket-status-request.png)
+![Postman Ticket Status Response](docs/images/postman/ticket-status-response.png)
 ```
 
 ### 5.7 Recommended Folder Structure for Images
@@ -644,8 +738,8 @@ docs/
       create-menu-body.png
       create-order-body.png
       patch-order-body.png
-      ws-connect.png
-      ws-messages.png
+    ticket-status-request.png
+    ticket-status-response.png
 ```
 
 ---
