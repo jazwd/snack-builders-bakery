@@ -3,6 +3,7 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import websocketPlugin from '@fastify/websocket';
 
+import { login } from './src/controllers/auth.controller';
 import { getHealth } from './src/controllers/health.controller';
 import {
   createMenuItem,
@@ -21,6 +22,7 @@ import {
 import { subscribeOrderStatus } from './src/controllers/order-ws.controller';
 import { initializeAppState } from './src/app/app-state';
 import { getEnvConfig } from './src/config/config.service';
+import { authenticateRequest } from './src/middleware/auth.middleware';
 
 const app = Fastify({ logger: true });
 const API_PREFIX = '/api';
@@ -28,24 +30,57 @@ const API_PREFIX = '/api';
 void app.register(websocketPlugin);
 
 app.get(`${API_PREFIX}/health`, getHealth);
+app.post(`${API_PREFIX}/auth/login`, login);
 
-app.get(`${API_PREFIX}/menu`, getMenu);
-app.post(`${API_PREFIX}/menu`, createMenuItem);
-app.put(`${API_PREFIX}/menu/:id`, updateMenuItem);
-app.delete(`${API_PREFIX}/menu/:id`, deleteMenuItem);
+app.get(`${API_PREFIX}/menu`, { preHandler: authenticateRequest }, getMenu);
+app.post(
+  `${API_PREFIX}/menu`,
+  { preHandler: authenticateRequest },
+  createMenuItem,
+);
+app.put(
+  `${API_PREFIX}/menu/:id`,
+  { preHandler: authenticateRequest },
+  updateMenuItem,
+);
+app.delete(
+  `${API_PREFIX}/menu/:id`,
+  { preHandler: authenticateRequest },
+  deleteMenuItem,
+);
 
-app.post(`${API_PREFIX}/orders`, createOrder);
-app.get(`${API_PREFIX}/orders`, getOrders);
-app.get(`${API_PREFIX}/orders/:orderId`, getOrderById);
-app.get(`${API_PREFIX}/orders/:orderId/tasks`, getOrderTasks);
-app.patch(`${API_PREFIX}/orders/:orderId`, updateOrder);
+app.post(
+  `${API_PREFIX}/orders`,
+  { preHandler: authenticateRequest },
+  createOrder,
+);
+app.get(`${API_PREFIX}/orders`, { preHandler: authenticateRequest }, getOrders);
+app.get(
+  `${API_PREFIX}/orders/:orderId`,
+  { preHandler: authenticateRequest },
+  getOrderById,
+);
+app.get(
+  `${API_PREFIX}/orders/:orderId/tasks`,
+  { preHandler: authenticateRequest },
+  getOrderTasks,
+);
+app.patch(
+  `${API_PREFIX}/orders/:orderId`,
+  { preHandler: authenticateRequest },
+  updateOrder,
+);
 
-app.get(`${API_PREFIX}/kitchen/status`, getKitchenStatus);
+app.get(
+  `${API_PREFIX}/kitchen/status`,
+  { preHandler: authenticateRequest },
+  getKitchenStatus,
+);
 
 app.get(
   `${API_PREFIX}/ws/orders/:orderId`,
-  { websocket: true },
-  subscribeOrderStatus
+  { websocket: true, preHandler: authenticateRequest },
+  subscribeOrderStatus,
 );
 
 async function startServer(): Promise<void> {
