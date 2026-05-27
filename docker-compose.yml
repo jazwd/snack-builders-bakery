@@ -20,7 +20,7 @@ services:
                     'wget',
                     '--spider',
                     '-q',
-                    'http://localhost:3000/api/health',
+                    'http://127.0.0.1:3000/api/health',
                 ]
             interval: 15s
             timeout: 5s
